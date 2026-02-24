@@ -1,0 +1,10 @@
+MaxTotalThinVolGB 12000 # *4 of physical size
+MaxPhysVolGB 3200 # this parameter isn't checked anymore
+ChunkSizeMB 1
+Blocksize 4104
+Bdev nvmesh
+TPV TP0 1024 # size in MB. Recommended to keep as multiples of 1024
+TPV TP1 1025
+TPV TP2 1026
+TPV TP3 1027
+DualControllerMode 1

@@ -1,0 +1,93 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+expect:
+    cluster:
+        mgr-version: # manager version regex - default any
+        num-mgmt-nodes: # number of management nodes
+        num-mongo-nodes: # number of mongo nodes
+        # Need reference to "info".  For example to get the cluster.info.mgr-version
+        # Even better if could apply filter, like masking just the major part of mgr-version
+        target-version: # target version regex - default mgr-version
+        client-version: # client version regex - default mgr-version
+        available-space:
+        used-space:
+    entities:
+        Volume:
+            - default_volume_expectations: # name for this volume group
+                name: # volume name or regex pattern. default is all
+                count: # expected number of matches.  default is any
+                status: online
+                health: healthy
+                capacity:
+                RAIDlevel:
+    block_device:
+        mbr:
+            is_boot_code_zeros: True
+            disk_signature: 0
+            unknown: 0
+            mbr_signature: 0xAA55
+        gpt:
+            sig_ascii: EFI PART
+            revision: 0x00010000
+            header_size: 92
+            reserved: 0
+            n_partition_entries: 128
+            size_of_partition_entry: 128
+        gpt_partitions:
+            1:
+                optional: False
+                type_guid: 3ca24aa3-d8fa-1c6b-9d0b-07abc42764a6
+                name: excelero_metadata
+            2:
+                optional: True
+                type_guid: 426a4b11-8886-7a0f-3bce-d84114fdfe90
+                name: excelero_journal_data
+            3:
+                optional: True
+                type_guid: 44e54508-3b09-fc55-94d4-ff6351d079ae
+                name: excelero_serjio_db
+    mtls:
+        # Certificate definitions with expected Organizational Units
+        certificates:
+            # Admin and REST certificates
+            Admin.crt: CLI-Admin
+            Rest-CLI.crt: CLI-Admin
+            Rest-Server.crt: Admin
+            # Kafka certificates
+            Kafka-MCS.crt: MCS
+            Kafka-Management.crt: Management
+            Kafka-Server.crt: Kafka
+            Kafka-zone1.TOMA.crt: zone1.TOMA
+            # Management certificates
+            Management.key-crt-bundle.crt: Management
+            Mgmt-HA.crt: Mgmt-HA
+            # MongoDB certificates
+            Mongo-Admin.crt: Admin
+            Mongo-Mgmt.crt: Management
+            Mongo-Server.crt: Server
+            Mongo.key-crt-bundle.crt: Server
+            MongoDB-Admin.key-crt-bundle.crt: Admin
+        # CA chain files (must exist)
+        ca_chains:
+            - kafka_ca_chain.crt
+            - mgmt_ca_chain.crt
+            - mongo_ca_chain.crt
+            - rest_ca_chain.crt
+        # Required key files
+        required_keys:
+            - Kafka-MCS.key
+            - Kafka-zone1.TOMA.key
+        # Required configuration values (from nvmesh.conf)
+        required_config:
+            # TLS enablement settings
+            KAFKA_TLS_ENABLED: "true"
+            _REST_AUTH_METHOD: MTLS
+            MANAGEMENT_PROTOCOL: https
+            # Certificate and key paths
+            KAFKA_CA: /etc/nvmesh/tls/kafka_ca_chain.crt
+            KAFKA_MCS_CERTIFICATE: /etc/nvmesh/tls/Kafka-MCS.crt
+            KAFKA_MCS_KEY: /etc/nvmesh/tls/Kafka-MCS.key
+            KAFKA_TOMA_CERTIFICATE: /etc/nvmesh/tls/Kafka-zone1.TOMA.crt
+            KAFKA_TOMA_KEY: /etc/nvmesh/tls/Kafka-zone1.TOMA.key
+            _REST_CA: /etc/nvmesh/tls/rest_ca_chain.crt

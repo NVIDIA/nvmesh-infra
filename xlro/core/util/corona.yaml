@@ -1,0 +1,9 @@
+-
+    name: corona
+    cmd: tail -F /tmp/corona.results 2>/dev/null
+    handlers:
+        -
+            patterns: '(?P<patient>\S+)  *tested positive'
+            event_defaults:
+                __format: '{patient} has Corona on {host}'
+    logpath: ./logs/{name}-{host}.log

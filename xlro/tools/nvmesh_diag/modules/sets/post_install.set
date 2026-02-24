@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# cluster
+platform
+system
+
+entities
+services
+toma
+orphan_gpt
+
+firewall
+selinux
+
+arp
+## # ip
+infiniband
+## mellanox
+rdma
+## rnic
+## # software
+system_tuning
+block_device
+
+## attachments
+## host
+## logs_collector

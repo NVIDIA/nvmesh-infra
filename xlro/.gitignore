@@ -1,0 +1,8 @@
+install-logs/
+test-logs
+xlro/qa/config/ec_volume.txt
+xlro/qa/config/n1038_cluster.json
+xlro/qa/config/n31_cluster.json
+xlro/qa/config/n34_cluster.json
+xlro/qa/config/n50_cluster.json
+xlro/qa/hot_swap/test_debug.py

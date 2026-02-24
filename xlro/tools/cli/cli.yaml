@@ -1,0 +1,32 @@
+aliases:
+  options:
+    # Use lower-case dashed-snake, i.e., real option name
+    name: -n
+    capacity: -c
+    raid-level: --rl
+    description: -d
+    nvmf-client: -nc
+    vsgs: --volume-security-group
+    drive-class: -dc
+    target-class: -tc
+    limit-by-disks: -D
+    # We need overrides, not just aliases, to be backwards compatible (or give nicer names)
+    # fix plurals, better naming consistency
+    limit-by-nodes: -T
+    nic-id: -n, --name
+  renames:
+    drives: drive
+    targets: target
+    key-pair: key-pairs
+  values:
+    raid-level:
+      ec: Erasure Coding
+      lvm: Concatenated
+      "0": Striped RAID-0
+      "1": Mirrored RAID-1
+      "10": Striped & Mirrored RAID-10
+      elect: ELECT
+    protection-level:
+      ignore: Ignore Separation
+      full: Full Separation
+      minimal: Minimal Separation

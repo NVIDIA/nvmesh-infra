@@ -1,0 +1,30 @@
+{
+  "python": {
+    "license": "Python-2.0",
+    "url": "https://www.python.org/downloads/license/"
+  },
+  "pyyaml": {
+    "license": "MIT",
+    "url": "https://github.com/yaml/pyyaml/blob/master/LICENSE"
+  },
+  "requests": {
+    "license": "Apache-2.0",
+    "url": "https://github.com/psf/requests/blob/main/LICENSE"
+  },
+  "jmespath": {
+    "license": "MIT",
+    "url": "https://github.com/jmespath/jmespath.py/blob/develop/LICENSE"
+  },
+  "prometheus-client": {
+    "license": "Apache-2.0",
+    "url": "https://github.com/prometheus/client_python/blob/main/LICENSE"
+  },
+  "logbook": {
+    "license": "MIT",
+    "url": "https://github.com/getlogbook/logbook/blob/master/LICENSE"
+  },
+  "pyinstaller": {
+    "license": "GPL-2.0",
+    "url": "https://github.com/pyinstaller/pyinstaller/blob/develop/LICENSE.txt"
+  }
+}

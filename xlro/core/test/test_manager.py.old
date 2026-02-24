@@ -1,0 +1,90 @@
+#!/usr/bin/env python
+
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+import os
+import sys
+import json
+import unittest
+from xlro.core.entities.base import *
+from xlro.core.entities.manager import Manager
+from xlro.core.entities.volume import *
+
+_MGMT = None
+def get_mgmt():
+    global _MGMT
+    if _MGMT is None:
+        _MGMT = os.environ.get('MGMT', '')
+    if not _MGMT:
+        raise unittest.SkipTest('$MGMT must be set to Management host')
+    return _MGMT
+
+class TestSources(unittest.TestCase):
+    def test_manager_restore(self):
+        m_host = get_mgmt()
+        # Pre-clean cache
+        Manager.remove_instance(Manager.instance(host=m_host))
+        m = Manager.instance(host=m_host)
+        m.load_properties(source=SourceTypes.MANAGEMENT)
+        mdict = m.to_dict(skip=['manager'])
+
+        # Test a "snapshot" - creation from the dictionary
+        Manager.remove_instance(m)
+        m2 = Manager.from_dict(mdict, SourceTypes.MANAGEMENT)
+        m2dict = m2.to_dict(skip=['manager'])
+        if mdict != m2dict:
+            with open('./M1.json', 'wb') as fp:
+                json.dump(mdict, fp, indent=2, sort_keys=True)
+            with open('./M2.json', 'wb') as fp:
+                json.dump(m2dict, fp, indent=2, sort_keys=True)
+            self.assertEqual(mdict, m2dict, 'Manager restore incomplete! Saved to ./M1.json and ./M2.json')
+
+    def test_lazy_loaders(self):
+        m_host = get_mgmt()
+        # Pre-clean cache
+        Manager.remove_instance(Manager.instance(host=m_host))
+        m = Manager(host=m_host)
+
+        # We haven't triggered any fields, so dict should be mostly empty
+        mdict = m.to_dict()
+        self.assertIsNone(mdict.get('volumes', None))
+        self.assertIsNone(mdict.get('clients', None))
+
+        # This should trigger population of volumes
+        v = m.volumes
+        mdict = m.to_dict()
+        self.assertIsNotNone(mdict.get('volumes', None))
+        self.assertIsNone(mdict.get('clients', None))
+
+        # This should trigger population of clients
+        c = m.clients
+        mdict = m.to_dict()
+        self.assertIsNotNone(mdict.get('clients', None))
+
+    def _test_multi_source(self):
+        m = Manager.instance(host=get_mgmt())
+        if len(m.volumes) == 0:
+            self.skipTest('Test requires at least one volume.')
+        v = m.volumes[0]
+        c = m.clients[0]
+        v.attach(c.name)
+        v.wait_for_attach(c.name)
+        v.set_properties(v.load_from_volume_status(c.name), SourceTypes.PROC)
+        vdict = v.to_dict()
+
+        # vdict should know have :PROC and :MANAGEMENT values.
+        # Let's do some silly checks
+        self.assertIn('chunks:'+SourceTypes.PROC, vdict)
+        self.assertIn('chunks:'+SourceTypes.MANAGEMENT, vdict)
+        m_seg0 = v.get_property('chunks', SourceTypes.MANAGEMENT)[0].pRaids[0].get_dataSegments()[0]
+        pchunks = v.get_property('chunks', SourceTypes.PROC)
+        p_seg0 = pchunks[0].pRaids[0].get_dataSegments()[0]
+        self.assertEqual(m_seg0.lbs, p_seg0.lbs)
+        self.assertEqual(m_seg0.lbe, p_seg0.lbe)
+
+
+if __name__ == '__main__':
+    if len(sys.argv) > 1:
+        os.environ['MGMT'] = sys.argv.pop(1)
+    unittest.main(verbosity=2)

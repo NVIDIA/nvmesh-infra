@@ -1,0 +1,55 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[tool.poetry]
+name = "nvmesh-infra"
+version = "1.0.0"
+description = "Infrastructure tools for NVMesh"
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+packages = [{include = "xlro"}]
+
+[tool.poetry.dependencies]
+python = ">=3.8,<3.11"
+confetti = "^2.5.3"
+click = "7.1.2"
+click-shell = "^2.1"
+concurrent-log-handler = "^0.9.25"
+dateparser = "^1.1.7"
+deprecated = "^1.2.13"
+fire = "^0.5.0"
+future = "^0.18.3"
+jinja2 = "^3.1.5"
+packaging = "^24.0"
+paramiko = "^3.0.0"
+pathlib2 = "^2.3.7.post1"
+psutil = "^5.9.4"
+pytz = "^2022.7.1"
+raven = "^6.10.0"
+requests = "^2.32.3"
+slash = "1.7.10"
+humanfriendly = "^10.0"
+pyyaml = "^6.0"
+configparser = "^5.3.0"
+waiting = "^1.4.1"
+jsonpath-rw = "^1.4.0"
+gspread = "^5.7.2"
+decorator = "^5.1.1"
+teamcity-messages = "^1.32"
+python-logstash = "^0.4.8"
+google-auth = "^2.16.2"
+pyjsparser = "^2.7.1"
+allure-python-commons = "^2.13.5"
+urllib3 = [
+    {version = "<2", python = "<3.9"},
+    {version = ">=2.6.3,<3", python = ">=3.9"}
+]
+setuptools = "75.3.0"
+gnureadline = "8.1.2"  # Required for CLI autocomplete and arrow key history (NVMESH-7518)
+
+[tool.poetry.group.dev.dependencies]
+pyinstaller = "^6.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

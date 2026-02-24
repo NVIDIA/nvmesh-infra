@@ -1,0 +1,66 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# TODO: Just reference the infa-config.volume-defs somehow
+volume:
+    defaults: &defaults
+      capacity: 20G
+      targetClasses: [ ]
+      driveClasses: [ ]
+      limitByDisks: [ ]
+      limitByNodes: [ ]
+      relativeRebuildPriority: 10
+      use_debug_di: null # can be null, true, false
+    raid-1: &raid-1
+      <<: *defaults
+      RAIDLevel: Mirrored RAID-1
+      numberOfMirrors: 1
+    raid-10:
+      <<: *defaults
+      RAIDLevel: Striped & Mirrored RAID-10
+      numberOfMirrors: 1
+      stripeSize: 32
+      stripeWidth: 2
+    raid-0:
+      <<: *defaults
+      RAIDLevel: Striped RAID-0
+      stripeWidth: 2
+      stripeSize: 32
+    concatenated:
+      <<: *defaults
+      RAIDLevel: Concatenated
+    ec: &ec
+      <<: *defaults
+      RAIDLevel: Erasure Coding
+      stripeSize: 32
+      stripeWidth: 1
+      dataBlocks: 8
+      parityBlocks: 2
+      protectionLevel: Ignore Separation
+    ec_min_separation:
+      <<: *ec
+      protectionLevel: Minimal Separation
+      description: 8+2 with minimal disk separation
+    ec-6D-2P:
+      <<: *ec
+      dataBlocks: 6
+      parityBlocks: 2
+      description: 6+2 with no disk separation
+    ec-10D-2P:
+      <<: *ec
+      dataBlocks: 10
+      parityBlocks: 2
+      description: 10+2 with no disk separation
+    ec-4D-2P:
+      <<: *ec
+      dataBlocks: 4
+      parityBlocks: 2
+      description: 4+2 with no disk separation
+
+vpg:
+  raid-1:
+      capacity: 20G
+      targetClasses: [ ]
+      driveClasses: [ ]
+      RAIDLevel: Mirrored RAID-1
+      numberOfMirrors: 1

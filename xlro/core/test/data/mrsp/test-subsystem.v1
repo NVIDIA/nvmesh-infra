@@ -1,0 +1,6 @@
+NQN nqn.2016-06.io.spdk:nvme-subsystem-1
+AllowAnyHost Yes
+SN SPDK00000000000001
+Listen RDMA 10.10.33.2:4420
+Namespace TP0 1
+Namespace TP2 1

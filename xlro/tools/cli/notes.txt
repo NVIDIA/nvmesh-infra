@@ -1,0 +1,86 @@
+Requirements
+    P0 - Support attach/detach (not attach-create for 2.7) (currently only via REST)
+    P1 - Forwards compatibility
+    P1 - Python3
+    P1 - No SDK
+    P1 - Multi-Version (same client can run against multiple mgmt versions)
+    P2 - Independent packaging, remote run
+    P2 - Multi-Manager (connect/disconnect in same run)
+
+Non Requirements:
+    Non-syntax help per command?
+    Auto-generated attributes?
+    Snapshots in 2.7
+
+Design Goals
+    - Single source of truth for any given thing
+        - validations should be in server
+    - Name aliasing/normalization - (camel, snake, dash/underscore, human, etc.; drive vs. disk?)
+    - Testability
+    - Generalize scan/format (values: e.g., capacity - Units, MAX; enums: e.g., attach-mode, raid-level, etc.)
+    - Calculated fields (e.g., targets of volumes)
+    - Generalize payload generation? (Template? See attach payload - looping, nesting, mapping, etc.)
+    - Future bypass (>FwdCompat, enable using as-yet undeclared, but now supported, properties)
+    - Code overrides (when generalization too costly/complex or plain impossible)
+    - Remove extra layers (volume -> VolumeCLI -> VolumeAPI) and explicit parameters in APIs
+
+Issues:
+    using propspecs isn't version-proof.  May need lowest/highest-version? (Really need to shift to non-PropertySpec)
+    click-repl vs. click-shell
+    packaging (Poetry? shiv?)
+    supporting wordy help
+    log showing is slow because we request each log individually
+    showing a log by name doesn't work
+    log acknowledge w/ multiple --id doesn't work
+
+Prep:
+    - map existing commands w/ non-trivial impl notes
+    - map existing infra/mgmt property names
+    - list existing enums
+    - list existing formatter/scanners
+
+Phases:
+    v- Basic list, show as POC of rest.yaml -> click
+    v- property-name issues 
+    v- CRUD
+    v- API payload utils (used Jinja2 templates)
+    v- APIs extend
+    v- APIs attach/detach
+
+    v- Nice show: default fields from yaml, and output formats
+    v- Field lists for create/update
+    v- non-CRUD entities (e.g., shouldn't have client create)
+    v- WAIT-FOR, and optional Confirm or --yes on actions
+
+    v- credentials set/store (multi manager)
+    v- log
+    v- add paging (skip/limit/pg to all show) paging can be global
+    v- option aliasing (-t vs. --targets) [Feature done, need to scan for examples]
+    v- value aliasing (ec for 'Erasure Coding' or whatever) [Feature done, need to scan for examples]
+
+    - add cluster
+    - testing
+
+    - Packaging/building (current pybuilder is fallback)
+
+    - add version (p1)
+    - option renames (for readability and consistency) - need reverse map as well. Option "name"?
+    - mdv options not supported for volume create?
+    - snapshots not supported
+
+    - add mongo (p2)
+    - add settings (p2)
+    - error handling (vs ugly stack traces)
+    - Value mapping utils (name to object? enums?)
+    - SSH Command base
+    - SSH Commands
+    - obj/rest pass-through?
+
+- Human name, description, human->prog types should all be in Entity
+- Human formatting (capacity)
+- Special cases (MAX == -1)
+- Calculated fields (e.g., targets of volume)
+- Default headline
+
+- payload format in yaml: operation? (Jinja2?)
+- override classes for non-trivial mappings?

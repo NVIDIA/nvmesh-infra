@@ -1,0 +1,52 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# my global config
+global:
+  scrape_interval: 1s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+  evaluation_interval: 1s # Evaluate rules every 15 seconds. The default is every 1 minute.
+  # scrape_timeout is set to the global default (10s).
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          # - alertmanager:9093
+
+# Load rules once and periodically evaluate them according to the global 'evaluation_interval'.
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+# A scrape configuration containing exactly one endpoint to scrape:
+# Here it's Prometheus itself.
+scrape_configs:
+  # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
+  #- job_name: "prometheus"
+
+    # metrics_path defaults to '/metrics'
+    # scheme defaults to 'http'.
+
+        # static_configs:
+        #   - targets: ["10.0.13.200:9090"]
+
+              # - job_name: "n26"
+              #static_configs:
+              #- targets: ["10.0.1.26:8000", "10.0.1.27:8000", "10.0.1.28:8000"]
+
+  - job_name: "INFRA-CI"
+    static_configs:
+            - targets: ["nvme1112.mtv.labs.mlnx:9300", "nvme1113.mtv.labs.mlnx:9300", "nvme1114.mtv.labs.mlnx:9300"]
+
+  - job_name: "ROCE1-CI"
+    static_configs:
+            - targets: ["nvme183.mtv.labs.mlnx:9300", "nvme184.mtv.labs.mlnx:9300", "nvme185.mtv.labs.mlnx:9300", "nvme186.mtv.labs.mlnx:9300"]
+
+  - job_name: "IB2-CI"
+    static_configs:
+            - targets: ["nvme165.mtv.labs.mlnx:9300", "nvme166.mtv.labs.mlnx:9300", "nvme167.mtv.labs.mlnx:9300", "nvme168.mtv.labs.mlnx:9300"]
+
+  - job_name: "TCP-CI"
+    static_configs:
+            - targets: ["nvme1010.mtv.labs.mlnx:9300", "nvme1011.mtv.labs.mlnx:9300", "nvme1012.mtv.labs.mlnx:9300", "nvme1017.mtv.labs.mlnx:9300"]

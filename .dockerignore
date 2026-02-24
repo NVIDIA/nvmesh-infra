@@ -1,0 +1,8 @@
+.git
+Dockerfile*
+**/*.swp
+**/*.pyc
+**/*.tgz
+**/*.log
+**/*.rpm
+**/*.deb

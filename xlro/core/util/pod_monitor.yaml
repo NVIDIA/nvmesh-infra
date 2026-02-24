@@ -1,0 +1,5 @@
+---
+monitors:
+  pod-monitor:
+    class: BasePodMonitor
+    logpath: 'pod-monitor-{host}.log'

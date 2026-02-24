@@ -1,0 +1,17 @@
+{%- for e in result -%}
+    {%- if e._mon_name == "journal-monitor" -%}
+        JournalCtl error on {{ e.host }}: {{ e.__message }}
+    {%- elif e._class == "ServiceWatchMonitor" -%}
+        Service error on {{ e.host }}: 
+        {%- for key, value in e.data.items() -%}
+            {%- if not loop.first %},{% endif %} {{key}} went from '{{value[0][2]}}' to '{{value[1][2]}}'
+        {%- endfor -%}
+    {%- elif e._class == "ModuleWarningWatcher" -%}
+        Warnings detected from module {{ e.module }}.  {{ e.data.data[0][0]}} -> {{ e.data.data[1][0]}}
+    {%- elif e._class == "CoreFileWatcher" -%}
+        Core files found on {{ e.host }}.  {{ e.data.data[1] }}
+    {%- elif "lostbuf" in e._mon_name %} [{{e._mon_name}} @ {{e.host}}] Lost buffers!
+    {%- elif e.host and e.__message %} [{{e._class}} @ {{e.host}}] {{ e.__message|truncate(120) }}
+    {%- else %} UNRECOGNIZED CLUSTER EVENT: {{e}}
+    {%- endif %}
+{% endfor -%}

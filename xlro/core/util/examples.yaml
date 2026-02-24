@@ -1,0 +1,118 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# To run only some of the monitors in a file, use --monitors <mon-name> in monitor_cli
+monitors:
+  su-monitor:
+    # A simple monitor of journalctl to watch for su sessions.
+    # When run, use sudo in another window to trigger and event
+
+    # CLASS can override the default of PidCmdMonitor. See other examples below
+    # class:
+
+    # CMD is a long-running command whose output will be monitored for events.
+    # - You can use pipes or other shell syntax for a complex command.
+    # - Where relevant filter the output on the remote to avoid shipping large amounts of data back to the local
+    #   host.  This is particularly relevant with journalctl which can generate HUGE amounts of irrelevant logs.
+    #   This would have worked just as well without the grep, but been much less efficient.  Alternatively, there
+    #   are lots of supported filters in journalctl itself.
+    # - BEWARE OF BUFFERING: if you DO use a pipeline make sure it's not block-buffering (the default for pipelines)
+    #   because you won't see your event until much later, if at all.  sed or grep allow you to force line-buffering.
+    cmd: sudo journalctl -f -n 0 | grep --line-buffered pam_unix
+
+    # LOGPATH is an optional logfile of messages/events of this monitor.
+    # - the path can have {host} to create logs per monitored host.
+    # - By default, messages (all cmd output) + events (match messages) are logged to file.
+    logpath: '{name}-{host}.log'
+
+    # NOLOG can be 'messages' or 'events' to turn off one of the default sets logged to the logpath
+    # nolog:
+
+    # HANDLERS process the returned output line by line
+    # This allows the same output to be parsed for many purposes vs running multiple, parallel commands
+    handlers:
+      -
+        #
+        # PATTERNS are the outputs that will raise an "event"
+        # - Patterns are python regex'es by default. (See RangePattern below for a more complex option.)
+        # - Patterns can be a single string or a list of multiple possible matches.  Event is triggered by first match.
+        # - The "event" contains the matched message, timestamp, host, etc.
+        # - A format (see below) can be used to print/log a nicer message on event.  Use named capture groups.
+        patterns:
+          -
+            '.*: session (?P<action>\S+) for user (?P<target>\S+)( by (?P<user>\S+))?'
+
+        # Event Defaults are optional, additional event fields for the generated events.
+        # - There are several automaticly added fields, such as host, timestamp, etc.
+        # - One "magic" field is '__format' which determines how the event will be printed, vs. dumping the event dictionary.
+        # - For more info, see the fields in MsgHandler class
+        event_defaults:
+            __format: 'NOTICE: sudo session {action} for target user {target}'
+
+    # Event Defaults are also valid at Monitor level
+    # event_defaults:
+
+  host-poller:
+
+    # A PollingMonitor is a monitor which runs a command every {delay} seconds vs. a normal monitors long-running command
+    # In this case, we check ssh reachability of a host.  In reality, this is pre-packaged as class: HostReachableMonitor,
+    # but I wanted to show the ExitHandler explicitly, which can be useful for other polling purposes
+    class: PollingMonitor
+    # Note this is run from localhost, with ping targeting a remote host
+    hosts: [ 'localhost' ]
+    cmd: ping -W 2 -c 1 10.0.1.172
+    interval: 2
+    handlers:
+      - 
+        # Unlike a pattern-handler, the ExitCodeHandler just checks for non-zero exit codes, and then generates events
+        # See more constructor params in the class
+        class: ExitCodeHandler
+    event_defaults:
+        __format: '10.0.1.172 is unreachable via SSH at {_timestamp}!'
+
+  top-logger:
+
+    # A "monitor" without events.  Just used for long-running logging
+    # Note this is run from localhost, with ping targeting a remote host
+    cmd: top -i -b -d 5
+    logpath: '{name}-{host}.log'
+
+  ls-watcher:
+    # A Watcher (base class PyWatchMonitor) is a stateful poller, analogous to the Unix "watch" command.
+    # It compares results over time, and reports changes. The initial result is considered the baseline.
+    class: LsWatcher
+    patterns: /tmp/interesting-*
+    event_defaults:
+        # TODO: We should support ninja2 now, and also give better access to old/new data in watchers.
+        __format: 'New files: {data[data][1]}.  Deleted files: {data[data][0]}'
+
+  su-range:
+    # A monitor on journalctl that logs short sudo sessions
+    cmd: sudo journalctl -f -n 0
+    handlers:
+        -
+            patterns:
+                # a RangePattern looks for a start and end match, and returns the whole thing as an event.
+                # This is not a great example, as a range can't handler overlapping ranges, but that won't happen
+                # with things like nvmesh call-traces or cli responses.
+                patternclass: RangePattern
+                startPattern: 'USER_START.* uid=(?P<targetid>\d+).* auid=(?P<userid>\d+)'
+                endPattern: 'USER_END'
+                # NVMesh trace range
+                # startPattern: "Call Trace"
+                # endPattern: "end trace"
+            event_defaults:
+                __format: |
+                    **SUDO session found for userid {userid} super-using to id {targetid}
+                    {__message}
+
+#
+# A more practical example, but indicating some missing features in cli:
+# 
+##  btest-io:
+##    class: BaseBtestMonitor
+##    # TODO: We need some other way (f-string?) to interpolate values into the yaml
+##    clients: ["n27"]
+##    volumes: ["r1"]
+##    btest_args: "-c -t 0 -T 4 -w 8 -D -B 30000 R 50"
+##    logdir: "/tmp/btest"

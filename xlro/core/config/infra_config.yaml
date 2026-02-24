@@ -1,0 +1,270 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+src_version: unknown # Version should be compiled in by builder using git describe.
+base:
+  entities_dump_dir: ""
+  strict: false
+logging:
+  # File of logging settings to be appended to default_logging.yaml
+  conf_file:
+  # You shouldn't have to override this, default will be not to use syslog for SDK
+  syslog_path:
+  # Logdir will be overridden to test-log in slash context.
+  logdir:
+  # If set, all REST will be logged here
+  rest_debug:
+  cmd_debug:
+  persistent_path: ~/.nvmesh/{tool}.log # set to None to disable persistent logging
+cluster:
+  management: []
+  popen_kwargs: {}
+  sshconfig: ~/.ssh/switch.secrets:~/.ssh/config
+  tls:
+    use_tls:
+    cert:
+    key:
+    ca:
+  cloud:
+    platform:
+sdk:
+# if custom path is provided sdk will be load from it
+  path: ""
+  # choose from (1.3, 1.4, master)
+  version: "master"
+general:
+  wait_for_it_offset: 0
+  mgmt_creds_file: ~/.nvmesh/credentials
+  limit_sourcetypes: []
+  print_btest_results: False
+  max_rest_batch_size: 50
+  max_rest_query_size: 500
+  max_wait_group: 50
+  fast_fail_rest_operations: true
+connection_manager:
+  timeout: 30
+  max_http_retries: 3
+  max_mgmt_rotations: 1
+  debug: false
+  warn_on_res_size_above_mb: 10
+tools:
+  infra_shared_so: /opt/nvmesh/common-repo/tools/infra_shared.so
+  cmp_blocks: /opt/nvmesh/perfTest/io_stress/cmp_blocks/cmp_blocks
+  miniscrub_test: /opt/nvmesh/common-repo/tools/miniscrub_test
+  nvmeshum_rpc: 'nvmeshum_spdk_rpc'
+nvmeshum:
+  expose_method: "auto_expose" # Must be changed if you're not using new UM
+  expose_method_order: ["snap", "ublk", "nvmeof", "nbd"]
+  expose_protocol: "rdma"
+  auto: true
+  snap_recreate_controller: False # To support mixing tests of ec and r0.
+  io_queue_size: 128
+  io_queues: 8
+  um_support_ec: true
+debug:
+  scale_ssh_trace: false    # Set this to debug problems when running against simulator
+volume_defs:
+    _nowarn_: true
+    # _defaults_ specifies options common to all the volume definitions.
+    # specific volume definitions override
+    # use infra prop names vs mgmt attrs
+    _defaults_:
+      capacity: 20G
+      targetClasses: [ ]
+      driveClasses: [ ]
+      limitByDisks: [ ]
+      limitByNodes: [ ]
+      relativeRebuildPriority: 10
+      use_debug_di: null # can be null, true, false
+    raid-1: &raid-1
+      RAIDLevel: Mirrored RAID-1
+      numberOfMirrors: 1
+    raid-10:
+      RAIDLevel: Striped & Mirrored RAID-10
+      numberOfMirrors: 1
+      stripeSize: 32
+      stripeWidth: 2
+    raid-0:
+      RAIDLevel: Striped RAID-0
+      stripeWidth: 2
+      stripeSize: 32
+    concatenated:
+      RAIDLevel: Concatenated
+    ec: &ec
+      RAIDLevel: Erasure Coding
+      stripeSize: 32
+      stripeWidth: 1
+      dataBlocks: 8
+      parityBlocks: 2
+      protectionLevel: Ignore Separation
+    ec_min_separation:
+      <<: *ec
+      protectionLevel:  Minimal Separation
+      description: 8+2 with minimal disk separation
+    ec-6D-2P:
+      <<: *ec
+      dataBlocks: 6
+      parityBlocks: 2
+      description: 6+2 with no disk separation
+      protectionLevel:  Ignore Separation
+    ec-10D-2P:
+      <<: *ec
+      dataBlocks: 10
+      parityBlocks: 2
+      description: 10+2 with no disk separation
+      protectionLevel:  Ignore Separation
+    ec-4D-2P:
+      <<: *ec
+      dataBlocks: 4
+      parityBlocks: 2
+      description: 4+2 with no disk separation
+      protectionLevel:  Ignore Separation
+    wcv: &wcv
+      <<: *raid-1
+      capacity: 20G
+      vtype: WCV
+    wcv_single_target:
+      <<: *wcv
+      ignoreNodeSeparation: 'true'
+    elect_4D: &elect_4D
+      <<: *ec
+      RAIDLevel: ELECT
+      dataBlocks: 4
+      parityBlocks: 2
+      vtype: QLC
+      capacity: 200G
+      mdv: &mdv
+        RAIDLevel: "Mirrored RAID-1"
+        vtype: MDV
+        numberOfMirrors: 1
+    elect_4D_no_redundancy:
+      <<: *elect_4D
+      mdv: &no_target_redundancy_mdv
+        <<: *mdv
+        ignoreNodeSeparation: true
+    elect_8D: &elect_8D
+      <<: *elect_4D
+      dataBlocks: 8
+    elect_8D_no_redundancy:
+      <<: *elect_8D
+      mdv:
+        <<: *no_target_redundancy_mdv
+pid_stop:
+  term_sig: SIGTERM
+  term_wait: 30 # How long to wait for SIGTERM to kill processes
+  kill_sig: SIGKILL # The signal used if SIGTERM didn't work. SIGKILL, SIGABRT or "FAIL" to fail test
+  kill_wait: 30 # How long to wait for final_kill signal to take effect before failing
+  stop_targets: all # Send sigs to which procs in the process tree: all, leaves, root
+monitors:
+  _nowarn_: true
+  journal-monitor:
+    class: CmdMonitor
+    # pipe to cat to remove coloring, which apparently can't be disabled in journalctl
+    # priority removes DEBUG messages (which is more effective and efficient than grep -v of the mgmt stuff)
+    cmd: sudo journalctl --follow --lines=0 --priority=info | cat
+    nolog: messages
+    logpath: 'journal_monitor-{host}.log'
+    handlers:
+        -
+            patterns:
+              # Merged in nvmeshmgr errors.  Harmless to run on non-manager, and saves separate running journalctl
+              - 'nvmeshmgr-stats.*ERROR: Failed to save statistics'
+              - 'nvmeshmgr.*Unhandled exception'
+              - 'page allocation failure. order:1, mode:0x20'
+              - '(?P<NON_ERROR>watchdog.*BUG.*CPU.*s!)'
+              - '\bBUG:'
+              - '(?i)Watchdog detected hard (?P<lockup>lockup) on cpu'
+              - patternclass: RangePattern
+                startPattern: 'cut here'
+                # Explicit EC-'s for backwards compatibility.  New convetion is #EC-<number>
+                middlePattern: '(.*(?P<NON_ERROR>(EC-4571|EC-6631|#?EC-\d{3,}|#?NVMESH-\d{3,}|NETDEV WATCHDOG:)))?'
+                endPattern: 'end trace'
+                maxLines: 100
+              - patternclass: RangePattern
+                startPattern: '----- NVMESHUM BACKTRACE START'
+                endPattern: '----- NVMESHUM BACKTRACE END -----'
+                maxLines: 100
+              - patternclass: RangePattern
+                startPattern: 'managementCM.py\[\d+\]: Traceback'
+                endPattern: 'nvmeshcm.service: Main process exited, code=exited, status=\d+/FAILURE'
+                maxLines: 100
+            event_defaults:
+                __loglevel: WARN
+                __template: '{% if NON_ERROR %}Ignoring {{NON_ERROR}} on {{host}}{% else %}JournalCtl error on {{ host }}: {{ __message }}{% endif %}'
+    actions:
+        - match:
+            # Blank regex always matches, so equivalent to "required"
+            lockup: ''
+          cmd: top -b -n 3 -d 1
+          logfile: '{host}-{_id}.top'
+
+  raft-members:
+    logpath: '{name}-{host}.log'
+    hosts: [Targets]
+    class: PyWatchMonitor
+    cmd: sudo grep -sPo "n_connected_peers=\K\d+" /proc/nvmeibs/toma_status/raft || echo 0
+    delay: 1
+    event_defaults:
+      __format: 'Toma peers changed from {data[data][0]} to {data[data][1]}'
+
+  raft-leader:
+    logpath: '{name}-{host}.log'
+    hosts: [Targets]
+    class: PyWatchMonitor
+    cmd: sudo cat /proc/nvmeibs/toma_status/leader || echo 0
+    delay: 1
+    event_defaults:
+      __format: 'Toma leader on {host} changed from {data[data][0]} to {data[data][1]}'
+
+  raft-connectivity:
+    class: PollingMonitor
+    logpath: '{name}-{host}.log'
+    hosts: [Targets]
+    # For now, we're just assuming max delay is 0.6
+    # It's a POC for non-code monitor
+    cmd: |
+      times=$(mktemp -t raft-times-XXXXXX)
+      trap "rm -f $times" EXIT
+      sudo grep time_since_voted_for_me /proc/nvmeibs/toma_status/raft > $times
+      [ -s $times ] || exit 0
+      limit=0.$(sudo /opt/nvmesh/common-repo/tools/toma_rpc config print | grep -Po 'raft_.*_timeout[^\d]+\K\d+' | paste -s -d'*' | bc)
+      delays=$(grep -Po 'term=\K\d+.\d+' $times)
+      max=$(echo -e "${limit}\n${delays}" | sort -rn | head -1)
+      sed -ne "/=$max/{s/\$/ (LIMIT=$limit)/;p}" $times
+    interval: 3
+    handlers:
+      - patterns: '- (?P<peer>[^:]+): [^=]*=(?P<delay>[\d\.]+).*LIMIT=(?P<limit>[\d\.]+)'
+        event_defaults:
+          __format: 'Toma RAFT comms limit ({limit}s) exceeded! Peer={peer}, delay={delay}.'
+
+  kernel-traces-monitor:
+    class: xlro.core.util.traces_monitor.KernelTracesStatsMonitor
+
+  toma-traces-monitor:
+    class: xlro.core.util.traces_monitor.TomaTracesStatsMonitor
+    hosts: [Targets]
+
+  counters-watcher:
+    no_warn: # List of no-warn counters
+      - n_err_nrch_pcpu_lookup_failed
+
+  os-disk-usage-watcher:
+    class: xlro.core.util.watchers.OSDiskUsageWatcher
+    disk_use_threshold: 90  # watcher will warn if disk use % is above this threshold
+
+  nodejs-memory-watcher:
+    class: xlro.core.util.watchers.NodeJSMemoryWatcher
+    hosts: [managements]
+
+  tracer-lostbuf-watcher:
+    logpath: '{name}-{host}.log'
+    class: PyWatchMonitor
+    cmd: cat /proc/nvmeib/tracer/stats 2>&1 | awk "/capuch/  { is_eter = (\$3 ~ /_eter/); }; /bufs_lost:/ && is_eter { lost += \$2 }; END { print lost }"
+    delay: 1
+    event_defaults:
+      __loglevel: WARN
+      __format: 'Increase in lost buffers on {host} from {data[data][0]} to {data[data][1]}'
+      NON_ERROR: 1
+    actions:
+      - cmd: cat /proc/nvmeib/tracer/stats
+        logfile: '{host}-tracer-stats-{_id}.txt'

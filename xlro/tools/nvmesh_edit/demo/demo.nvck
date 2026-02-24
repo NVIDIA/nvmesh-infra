@@ -1,0 +1,67 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Show auto-complete on volume
+# Enter volume
+volume demo-test
+# Shortcut to demo vlba
+vlba 23456
+show
+
+# Exit leaves last shell, which was invoked by 'vlba' from volume context
+exit
+# We should be back at volume (see prompt)
+
+# Now we'll navigate the slow, geometry way...
+blockset 23456
+
+# Show topology (works from blockset context downwards)
+topo
+
+# Let's read the lock info of current blockset...
+rmbinfo
+# RMBInfo is a leaf "object" context, so we have object getters and setters
+get
+get D0.tx_id
+# We can name an ancestor level (even though exit would work in this case)
+blockset
+
+# Note, w/in blockset, things are relative.
+slice 10
+# Instead of #s, can use "role names"
+page D2
+show
+# We should be back where we started - vlba 23456
+
+md
+get
+get D.edic
+# Can also send integer values as hex with 0x prefix
+set D.edic 0x1fffa0
+# Note the "dirty" (*) in the prompt
+get D.edic %x
+set D.edic 0xE313C
+
+# Back to block
+# break [n] is another way to navigate, and independent of how we got here (as opposed to exit)
+break
+export ./nvck-data
+## In other window, ls -l ./nvck-data to show 4096/8 files.
+blockset
+transactions
+tx 0
+page D2
+debug
+quit
+
+# Optional view transaction...
+export ./nvck-tx0
+## In other window, cat ./nvck-data/data_2; cat ./nvck-tx0/data_2
+# Now go back to original page, and do a sort of rollback.
+volume
+vlba 23456
+import ~/nvck-tx0
+write
+quit
+#
+## You could use dd skip=23456 count=1 bs=4096 if=/dev/nvmesh/demo-test to show old data has been restored.

@@ -1,0 +1,42 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+version: 1
+disable_existing_loggers: false
+loggers:
+  "":
+    handlers: ["console"]
+    # Global logger set to lowest level.  Let Handlers do differentiated level filtering.
+    level: 0
+handlers:
+  console:
+    class: "xlro.core.util.cli_util.ConsoleHandler"
+    formatter: "user"
+    level: NOTICE
+  file:
+    class: "logging.FileHandler"
+    level: DEBUG
+    filename: "infra.log"
+    formatter: "detailed"
+    mode: 'w'
+  cli_file:
+    class: "concurrent_log_handler.ConcurrentRotatingFileHandler"
+    level: DEBUG
+    filename: "~/.nvmesh/infra.log" # Actually configured by infra_config.yaml:logging.persistent_path
+    formatter: "detailed-concurrent"
+    mode: 'a'
+    maxBytes: 52428800
+    backupCount: 3
+formatters:
+  user:
+    format: '[%(asctime)s] %(message)s'
+    datefmt: '%H:%M:%S'
+  default:
+    format: '%(asctime)s %(levelname)-8s %(name)-15s %(message)s'
+    datefmt: '%Y-%m-%d %H:%M:%S'
+  detailed:
+    format: '%(asctime)s.%(msecs)03d %(levelname)s [%(name)s:%(filename)s:%(lineno)d] (%(thread)s) %(message)s'
+    datefmt: '%Y-%m-%d %H:%M:%S'
+  detailed-concurrent:
+    format: '%(asctime)s.%(msecs)03d %(levelname)s [%(name)s:%(filename)s:%(lineno)d] (PID:%(process)d Thread:%(thread)s) %(message)s'
+    datefmt: '%Y-%m-%d %H:%M:%S'

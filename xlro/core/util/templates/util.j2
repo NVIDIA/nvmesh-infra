@@ -1,0 +1,14 @@
+{% set color_map = {
+    'bright_black': 90, 'bright_red': 91, 'bright_green': 92, 'bright_yellow': 93, 'bright_blue': 94, 'bright_magenta': 95, 'bright_cyan': 96, 'bright_white': 97,
+    'black': 30, 'red': 31, 'green': 32, 'yellow': 33, 'blue': 34, 'magenta': 35, 'cyan': 36, 'white': 37,
+    'off': 0, '_default': 0, 'bold': 1,
+} %}
+{%- macro colorize(color, value) %}{{ '\u001b[' }}{{color_map[color] }}m{{value}}{{ '\u001b[0m' }}{% endmacro -%}
+{%- macro color(value) -%}
+    {%- set _ = kwargs.update({'_default': []}) -%}
+    {%- set colorns = namespace(match=false) -%}
+    {%- set match = 0 -%}
+    {%- for kw in kwargs -%}
+        {% if colorns.match == false and (not kwargs[kw] or value in kwargs[kw]) -%}{{ colorize(kw, value) }}{% set colorns.match = true %}{% endif %}
+    {%- endfor -%}
+{%- endmacro -%}

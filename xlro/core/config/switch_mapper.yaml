@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+default_lookup:
+  - 'Interface.Chassis.SysName'
+  - 'Interface.Chassis.SysDescr'
+  - 'name'
+switch_types:
+  # Infra supported switch types mapped to respective regexes to try and match in the mentioned lookup fields
+  MellanoxSwitch:
+    patterns: 'MLNX|MSN'
+  UnmanagedMellanoxSwitch:
+    patterns: '(SwitchIB|Quantum) Mellanox Technologies'
+  SupermicroSwitch:
+    patterns: 'supermicro'
+  CumulusSwitch:
+    patterns: 'cumulus'
+  DellSwitch:
+    patterns: 'dell'
+  CiscoSwitch:
+    patterns: 'Cisco'
+  VirtualSwitch:
+    patterns: 'vnvmesh'

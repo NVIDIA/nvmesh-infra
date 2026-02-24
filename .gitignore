@@ -1,0 +1,61 @@
+#ingore
+.vscode/
+orchestrator/node_modules/
+tests/
+
+# python cache files
+*.pyc
+
+#pyCharm settings
+.idea/
+
+#python build folder
+build/
+
+pyenv
+
+#automation specific generated files
+automation.log
+
+# project specific files
+orchestrator/tests/
+orchestrator/public/projectTar/*
+orchestrator/tests/testRepository.tar
+orchestrator/package-lock.json
+
+# patches
+*.patch
+
+# CSS
+.sass-cache/
+*.scssc
+*.css.map
+orchestrator/public/stylesheets/style.css
+
+# infraClient versioning
+infraClient/version
+
+# swp files
+infraClient/utils/configurations/.fs_patterns.fio.swp
+
+orchestrator/dump/**
+orchestrator/mydb/**
+
+# Dori's tests
+xlro/qa/aaa_test
+
+# infra-bin tarball
+xlro/infra/jenkins/nvmesh_cd/compilator/pybuilder/infra-bin.tgz
+
+# Local installation logs
+install-logs
+
+# nvmeshcli web emulator
+xlro/tools/cli/cli-web/node_modules
+
+# pyenv version file
+.python-version
+
+# GitLab secrets file (should be stored at /home/compilator/.gitlab_secrets)
+gitlab_secrets
+.gitlab_secrets

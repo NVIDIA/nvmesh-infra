@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+### This set resembles deprecated script nvmesh_health_check
+#cluster
+platform
+
+toma
+firewall
+selinux
+arp
+infiniband
+rdma
+system_tuning

@@ -1,0 +1,24 @@
+{% import 'util.j2' as jutil %}
+{%- if mgr %}
+    {{ jutil.colorize('bold', 'Manager:') }} {{mgr.endpoints}} ({{mgr.version}})
+    {{ jutil.colorize('bold', 'Volumes:') }}
+    {%- for v in mgr.volumes|sort(attribute='name') %}
+        {{v.name}} ({{utils.convertBytesToUnit(v.capacity, 0)}} - {{v.RAIDlevel}}) {{ jutil.color(v.status, bright_green=[v.ONLINE], bright_red=[]) }}
+    {%- endfor %}
+    {{ jutil.colorize('bold', 'Clients:') }}
+    {%- for c in mgr.clients|sort(attribute='name') %}
+        {{c.name}} ({{c.version}}) {{ jutil.color(c.health, bright_green=[c.HEALTH.HEALTHY], bright_yellow=[c.HEALTH.ALARM], bright_red=[]) }}
+        {%- for aname in c.attachments|sort %}{% set a = c.attachments[aname] %}
+            {{aname}} [{{a.status_str}}]{% if a.is_hidden %} {{ jutil.colorize('bright_white', 'hidden') }}{% endif %}
+        {%- endfor -%}
+    {%- endfor %}
+    {{ jutil.colorize('bold', 'Targets:') }}
+    {%- for t in mgr.targets|sort(attribute='name') %}
+        {{t.name}} ({{t.version}}) {{ jutil.color(t.health, bright_green=[t.HEALTH.HEALTHY], bright_yellow=[t.HEALTH.ALARM], bright_red=[]) }}
+        {%- for d in t.drives %}
+            {{d}}[{{ jutil.color(d.status, bright_green=['Ok'], bright_red=[])}}]
+        {%- endfor -%}
+    {%- endfor %}
+{%- else -%}
+    Manager required. Use -M <mgmthost>
+{%- endif -%}

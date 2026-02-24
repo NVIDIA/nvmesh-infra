@@ -1,0 +1,9 @@
+r/disk|drive:
+  drive: 'diskID'
+r/nic:
+  nic: 'nicID'
+r/volume:
+  volume: 'volumeID'
+newVolumeEvent:
+  volume: 'name'
+  praid: 'chunks.pRaids.uuid'

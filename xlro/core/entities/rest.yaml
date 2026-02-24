@@ -1,0 +1,1189 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# mgmt-rest.yaml
+# Version must be version string - i.e., #[.#]...
+"0":
+    entities:
+        User:
+          dbkey: email
+          route: users
+          params:
+            - email
+            - role
+            - notificationLevel
+            - description
+          display:
+            - email
+            - role
+            - notificationLevel
+          ops:
+            create:
+              params:
+                # Only on create, not update
+                - password
+                - relogin
+            changePassword:
+              help: Change password
+              opts:
+                password:
+                  required: true
+              style: keys
+              payload: '{"_id": "{{entities[0]}}", "password": "{{password}}", "confirmationPassword": "{{password}}"}'
+            acceptEula:
+              help: Mark EULA as accepted
+              opts:
+                signature:
+                  required: true
+              style: none
+              payload: '{"eulaSignature": "{{signature}}"}'
+        # Mapping from Management dicts to infra types, keyed by infra class name
+        Volume:
+            # For REST types only, route and dbkey are required
+            route: volumes
+            # Default projection
+            projection: -chunks
+            # DBKey is in REST naming.  Default is _id
+            dbkey: name
+            rest2infra: &volume_r2i
+                # rest-name: infra-name
+                enableNVMf: nvmf_enabled
+                RAIDLevel: RAIDlevel
+                diskClasses: driveClasses
+                serverClasses: targetClasses
+                enableCrcCheck: crc_enabled
+                selectedClientsForNvmf: enabled_nvmf_clients
+                type: vtype
+            prop2proj:
+              drives_: chunks
+              targets_: chunks
+              reservation_mode: reservation
+              reserved_by: reservation
+              reservation_version: reservation
+            params: &volume_params
+              - name
+              - capacity
+              - description
+              - relativeRebuildPriority
+              - driveClasses
+              - targetClasses
+              - limitByDisks
+              - limitByNodes
+              - nvmf_enabled
+              - enabled_nvmf_clients
+              - crc_enabled
+              - isReadOnly
+              - VSGs
+              - mdvSpec
+
+            display:
+              - name
+              - description
+              - RAIDlevel
+              #- raid_type
+              - health
+              - status
+              - action
+              - capacity
+              - dataBlocks
+              - parityBlocks
+              - protectionLevel
+              - stripeWidth
+              - domain
+              - enabled_nvmf_clients
+              - nvmf_enabled
+              - crc_enabled
+              - VSGs
+              - reservation_mode
+              - targets_
+              - drives_
+              - dirty_bits
+            ops:
+                rebuild:
+                    help: Rebuild a volume
+                    route: rebuildVolumes
+                    style: keys
+                    payload: "{{entities}}"
+                delete:
+                  confirm: |
+                    WARNING: You are about to delete logical volumes and any associated drive allocations to such volumes will be zeroed,
+                    making recovery of these volumes impossible.
+                    Are you sure you want to continue?
+                  wait: &wait_for_vol_delete
+                    prop_name: 'status'
+                    values: ['Removed']
+                    is_matching: true
+                    non_values: ['Removed']
+                create:
+                  wait:
+                    prop_name: 'status'
+                    values: ['online', 'offline', 'degraded']
+                    is_matching: true
+                  params: &additional_volume_params
+                    - RAIDlevel
+                    - domain
+                    - VPG
+                    - stripeWidth
+                    - stripeSize
+                    - numberOfMirrors
+                    - dataBlocks
+                    - parityBlocks
+                    - protectionLevel
+                    - ignoreNodeSeparation
+
+        Chunk:
+        PRaid:
+        Segment:
+            rest2infra:
+                type: segmentType
+        KeyPair:
+            route: keys
+            rest2infra:
+                _id: name
+                keys: key_pairs
+            params:
+              - name
+              - description
+            display:
+              - name
+              - description
+              - dateModified
+              - modifiedBy
+        VolumeSecurityGroup:
+            route: volumeSecurityGroups
+            rest2infra:
+                _id: name
+                keys: key_pairs
+            params:
+              - name
+              - description
+              - key_pairs
+            display:
+              - name
+              - description
+              - modifiedBy
+              - dateModified
+              - key_pairs
+        Client: &base_client
+            route: clients
+            dbkey: clientID
+            rest2infra:
+                clientID: name
+                block_devices: all_attachments
+                nvmfAttachedVolumes: nvmf_attached_volumes
+            prop2proj:
+              # Entities have calculated properties, for example, nic_ids in Target or attached_io_enabled in Client
+              # This lets us add the indirectly required projection for those properties
+              attached_io_disabled: block_devices
+              attached_io_enabled: block_devices
+              attached_recovery: block_devices
+            display:
+              - _name
+              - version
+              - health
+              - attached_io_enabled
+              - attached_io_disabled
+              - attached_recovery
+            ops:
+                attach:
+                    help: Attach one or more volumes to the specified client
+                    opts:
+                      volume:
+                        required: true
+                        multi: true
+                        type: Volume
+                      mode:
+                        consts_key: reservationModeNames
+                        choices: ['SHARED_READ_ONLY', 'SHARED_READ_WRITE', 'EXCLUSIVE_READ_WRITE']
+                        default: SHARED_READ_WRITE
+                      reservation-version:
+                        type: int
+                      preempt:
+                        type: bool
+                        default: false
+                    style: one
+                    payload: |
+                      { 'client': '{{entities[0]._name}}', 'volumes': [
+                        {% for v in volume %}
+                          { 'name': '{{v.name}}', {% if mode %}'reservation': {
+                            'mode': '{{mode}}',
+                            'preempt': {{preempt}},
+                            {% if reservation_version %}'version': {{reservation_version}},{% endif %}
+                            },{% endif %}
+                          },
+                        {% endfor %}
+                      ]}
+                    batch_op:
+                      key: volume
+                    wait: &wait_for_attach
+                      obj-key: Attachment:client={{result.__op_key}}:volume={{result._id}}
+                      prop_name: 'status'
+                      values: ['Attached']
+                      is_matching: true
+                      non_values: ['Detached']
+                detach:
+                    help: Detach one or more volumes from the specified client
+                    opts:
+                      volume:
+                        required: true
+                        multi: true
+                        type: Volume
+                      force:
+                        type: bool
+                        default: false
+                    style: one
+                    payload: |
+                      { 'client': '{{entities[0]._name}}', 'volumes': [
+                        {% for v in volume %} { 'name': '{{v.name}}', 'force': {{force}} }, {% endfor %}
+                      ]}
+                    all:
+                      volume: attachments
+                    batch_op:
+                      key: volume
+                    wait:
+                      obj-key: Attachment:client={{result.__op_key}}:volume={{result._id}}
+                      prop_name: 'status'
+                      values: ['Detached']
+                      is_matching: true
+                      non_values: ['Detached']
+                delete:
+                    help: Delete one or more specified clients
+                    route: delete
+                    style: entities
+                    payload: "{'Ids': {{ entities | map(attribute='_name') | list }} }"
+        Target:
+            route: servers
+            dbkey: node_id
+            projection: -disks.GPT,disks.diskSegments #,nics
+            rest2infra:
+                disks: drives
+                node_id: name
+                node_status: status
+                # nics: ports
+            prop2proj:
+              nic_ids: nics
+              all_drives: disks
+            display:
+              - _name
+              - all_drives
+              - nic_ids
+              - version
+              - health
+              - tomaStatus
+              - zone
+            ops:
+              delete:
+                help: Delete one or more specified targets
+                route: delete
+                style: entities
+                payload: "{'Ids': {{ entities | map(attribute='_name') | list }} }"
+              delete-nic:
+                help: Delete a nic from a target
+                opts:
+                  nic_id:
+                    required: True
+                route: deleteNIC
+                style: one
+                payload: "{'nicID': '{{nic_id}}', 'targetID': '{{entities[0]._name}}'}"
+              set-zone:
+                route: setZone
+                opts:
+                  zone:
+                    required: True
+                    type: int
+                style: entities
+                payload: "{'zoneID': {{zone}}, 'targetIDs': {{ entities | map(attribute='_name') | list }} }"
+        NIC:
+        Attachment:
+            rest2infra:
+                name: vname
+                vol_status: status
+                io_perm: io_permission_status
+                is_io_enabled: io_enabled
+        TargetClass:
+            route: serverClasses
+            dbkey: name
+            rest2infra:
+                targetNodes: targets
+            params:
+              - name
+              - description
+              - targets
+              - domains
+            display:
+              - name
+              - description
+              - targets
+              - dateModified
+              - modifiedBy
+              - domains
+        DriveClass:
+            route: diskClasses
+            dbkey: _id
+            rest2infra:
+                _id: name
+                disks: drives
+            params:
+              - name
+              - description
+              - drives
+              - domains
+            display:
+              - name
+              - description
+              - drives
+              - dateModified
+              - modifiedBy
+              - domains
+        VPG:
+            route: volumeProvisioningGroups
+            dbkey: name
+            rest2infra:
+                <<: *volume_r2i
+            params: &v1_vpg_params
+              - name
+              - description
+              - VSGs
+            display:
+              - name
+              - capacity
+              - description
+              - RAIDlevel
+            ops:
+              create:
+                params: &v1_vpg_create_params
+                  - capacity
+                  - RAIDlevel
+                  - domain
+                  - driveClasses
+                  - targetClasses
+                  - stripeWidth
+                  - stripeSize
+                  - numberOfMirrors
+                  - dataBlocks
+                  - parityBlocks
+                  - protectionLevel
+                  - ignoreNodeSeparation
+                  - crc_enabled
+
+        Drive:
+            route: disks
+            dbkey: diskID
+            nested: disks
+            prop2proj:
+              target: nodeID
+              used_capacity: usableBlocks,availableBlocks,block_size
+            rest2infra:
+                Model: model
+                diskSegments: segments
+                diskID: name
+                block_size: blockSize
+                metadata_size: metadata
+                isExcluded: excluded
+                isOutOfService: evicted
+            display:
+              - target
+              - name
+              - Vendor
+              - blockSize
+              - metadata
+              - status
+              - health
+              - used_capacity
+              - model
+              - excluded
+              - evicted
+            ops:
+                evict:
+                    help: Evict a drive from a target
+                    route: evictDiskByDiskIds
+                    ids_param: Ids
+                    payload: "{'Ids': {{entities}}}"
+                format:
+                    help: Format a drive (wiping existing data)
+                    route: formatDiskByDiskIds
+                    ids_param: diskIDs
+                    confirm: |
+                      WARNING: You are about to format drives.
+                      Formatting will erase all the data on those drives.
+                      Are you sure you want to continue?
+                    opts:
+                      formatType:
+                        consts_key: formatTypes
+                        choices: ['format_ec', 'format_raid']
+                    style: keys # none, keys, entities, one
+                    payload: "{'diskIDs': {{entities}}, {% if format_type %} 'formatType': '{{format_type}}',{% endif %}}"
+                delete:
+                  help: Delete one or more specified drives
+                  route: delete
+                  payload: "{'Ids': {{entities}}}"
+        Log:
+            route: logs
+            dbkey: id
+            rest2infra:
+                _id: id
+                timestamp: dateCreated
+                isAudit: audit
+            prop2proj:
+                audit: meta
+                header: meta
+                acknowledged: meta
+                link: meta
+            display:
+              - id
+              - header
+              - message
+              - dateCreated
+              - dateModified
+              - acknowledged
+              - acknowledgedBy
+              - level
+              - audit
+            ops:
+                acknowledge:
+                    help: Acknowledge a log
+                    route: acknowledge
+                    payload: "{'id': '{{entities[0]}}'}"
+                acknowledgeAll:
+                    help: Acknowledge all alerts
+                    route: acknowledgeAll
+                    style: none
+        Cluster:
+            route: /
+            dbkey: clusterID
+            rest2infra:
+                clusterID: id
+            ops:
+                update-cluster-id:
+                    style: none
+                    opts:
+                      id:
+                        required: true
+                    help: Update the cluster's ID
+                    route: nvmeshMetadata/updateClusterID
+                    payload: "{'clusterID': '{{id}}'}"
+            display:
+              - id
+              - managementVersion
+              - totalSpace
+              - allocatedSpace
+              - freeSpace
+              - targets_summary
+              - clients_summary
+              - volumes_summary
+              - drives_summary
+              - volume_segments_summary
+        GeneralSettings:
+            route: generalSettings
+            display: &gs_display
+              - enableZones
+              - enableNVMf
+              - domain
+              - loggingLevel
+              - daysBeforeLogEntryExpires
+            params: *gs_display
+
+        ConfigProfile:
+          route: configurationProfiles
+          dbkey: name
+          params:
+              - name
+              - hosts
+              - labels
+              - config
+              - description
+          display:
+              - name
+              - version
+              - labels
+              - hosts
+              - config
+
+"1":
+    extends: "0"
+    entities:
+        Volume:
+            params: &volume_params_sans_capacity
+              - name
+              - description
+              - relativeRebuildPriority
+              - driveClasses
+              - targetClasses
+              - limitByDisks
+              - limitByNodes
+              - nvmf_enabled
+              - enabled_nvmf_clients
+              - crc_enabled
+              - isReadOnly
+              - VSGs
+              - mdvSpec
+            ops:
+                create:
+                  params: &additional_volume_params_with_capacity
+                    - RAIDlevel
+                    - capacity
+                    - domain
+                    - VPG
+                    - stripeWidth
+                    - stripeSize
+                    - numberOfMirrors
+                    - dataBlocks
+                    - parityBlocks
+                    - protectionLevel
+                    - ignoreNodeSeparation
+                snapshot-create-and-attach:
+                    help: Create a snapshot volume and attach on DPU
+                    route: createAndAttach
+                    params:
+                      - *volume_params
+                      - *additional_volume_params
+                    opts:
+                      client:
+                        type: Client
+                        required: true
+                      source:
+                        type: Volume
+                        required: true
+                    style: one
+                    # Payload below needs to call python but NOT interpolate any return values.
+                    # So "" if blah() will call blah, but not generate any output from the template
+                    # kwargs is dict with ALL options vs. having template handle each individually
+                    payload: |
+                      {
+                        'clientID': '{{kwargs.pop("client")._name}}',
+                        {{ "" if kwargs.setdefault("sourceID",source.name) }}
+                        {{ "" if kwargs.setdefault("sourceUUID",source.uuid) }}
+                        {{ "" if kwargs.pop("source") }}
+                        {{ "" if kwargs.pop("client", "") }}
+                        'volume': {{ entities[0].set_properties(kwargs).to_foreign_sdk_entity() }}
+                      }
+                    wait:
+                      <<: *wait_for_attach
+                snapshot-detach-and-delete:
+                    help: Detach a snapshot volume and delete it
+                    route: detachAndDelete
+                    style: entities
+                    payload: "[{% for e in entities %}{'_id': '{{e.name}}', 'uuid': '{{e.uuid}}'}, {% endfor %}]"
+                    wait:
+                      <<: *wait_for_vol_delete
+                extend:
+                    help: Extend the size of a volume
+                    route: extend
+                    opts:
+                      capacity:
+                        type: Size
+                        required: true
+                    style: keys # none, keys, entities, one
+                    payload: "[{% for k in entities %}{'_id': '{{k}}', 'capacity': {% if capacity.ivalue == -1 %}'MAX'{% else %}{{capacity.ivalue}}{% endif %}}, {% endfor %}]"
+
+"1.1":
+    extends: "1"
+    features:
+      useGB: true
+    entities:
+      Volume:
+        ops:
+          extend:
+            payload: "[{% for k in entities %}{'_id': '{{k}}', 'capacity': {% if capacity.ivalue == -1 %}'MAX'{% else %}{{capacity.ivalue/(1000**3)}}{% endif %}}, {% endfor %}]"
+"2":
+    extends: "1"
+    drops:
+      - entities.User.ops.acceptEula
+    entities:
+        Client: &base_client_v2
+            ops:
+                attach:
+                    payload: |
+                          { 'client': '{{entities[0]._name}}', 'volumes': [
+                            {% for v in volume %}
+                              { 'name': '{{v.name}}',
+                                'uuid': '{{v.uuid}}', {% if mode %}'reservation': {
+                                'mode': '{{mode}}',
+                                'preempt': {{preempt}},
+                                {% if reservation_version %}'version': {{reservation_version}},{% endif %}
+                                },{% endif %}
+                              },
+                            {% endfor %}
+                          ]}
+                detach:
+                    payload: |
+                          { 'client': '{{entities[0]._name}}', 'volumes': [
+                            {% for v in volume %} { 'name': '{{v.name}}', 'uuid': '{{v.uuid}}', 'force': {{force}} }, {% endfor %}
+                          ]}
+        Drive:
+            ops:
+                evict:
+                    route: evictDiskByDiskIDsAndUUIDs
+                    style: entities
+                    payload: "[{% for e in entities %}{ 'diskID': '{{e.name}}', 'uuid': '{{e.uuid}}'}, {% endfor %}]"
+        ConfigProfile:
+            ops:
+                delete:
+                    payload: "[{% for e in entities %}{ '_id': '{{e.name}}', 'uuid': '{{e.uuid}}'}, {% endfor %}]"
+        User:
+            ops:
+                delete:
+                    payload: "[{% for e in entities %}{ '_id': '{{e.email}}', 'uuid': '{{e.uuid}}'}, {% endfor %}]"
+        Volume:
+            ops:
+                delete:
+                    payload: "[{% for e in entities %}{ '_id': '{{e.name}}', 'uuid': '{{e.uuid}}'}, {% endfor %}]"
+                rebuild:
+                    style: entities
+                    payload: "[{% for e in entities %}{ '_id': '{{e.name}}', 'uuid': '{{e.uuid}}'}, {% endfor %}]"
+                extend:
+                    style: entities
+                    payload: "[{% for e in entities %}{'_id': '{{e.name}}', 'uuid': '{{e.uuid}}', 'capacity': {% if capacity.ivalue == -1 %}'MAX'{% else %}{{capacity.ivalue}}{% endif %}}, {% endfor %}]"
+"3":
+    extends: "2"
+    entities:
+        User:
+          ops:
+            changePassword:
+              style: one
+              payload: '{"_id": "{{entities[0].email}}", "uuid": "{{entities[0].uuid}}", "password": "{{password}}", "confirmationPassword": "{{password}}"}'
+"4":
+    extends: "3"
+    entities:
+        VPG:
+          ops:
+              delete:
+                  payload: "[{% for e in entities %}{ '_id': '{{e.name}}', 'uuid': '{{e.uuid}}'}, {% endfor %}]"
+        Management:
+            route: managementCluster
+            dbkey: id
+            rest2infra:
+              _id: id
+            display:
+              - hostname
+              - id
+              - managementVersion
+              - useSSL
+"5":
+    extends: "4"
+    entities:
+        VPG:
+          ops:
+              extend:
+                  help: Extend the size of a VPG
+                  route: extend
+                  opts:
+                    capacity:
+                      type: Size
+                      required: true
+                  style: entities
+                  payload: "[{% for e in entities %}{'_id': '{{e.name}}', 'uuid': '{{e.uuid}}', 'capacity': {{capacity.ivalue}},} {% endfor %}]"
+
+"6":
+    extends: "5"
+    features:
+      useGB: true
+    entities:
+      Client:
+        ops:
+          attach:
+            opts:
+              mode:
+                consts_key: reservationModeAttachOptions
+      Volume:
+        ops:
+          extend:
+            payload: "[{% for e in entities %}{'_id': '{{e.name}}', 'uuid': '{{e.uuid}}', 'capacity': {% if capacity.ivalue == -1 %}'MAX'{% else %}{{capacity.ivalue/(1000**3)}}{% endif %}}, {% endfor %}]"
+      VPG:
+        ops:
+          extend:
+            payload: "[{% for e in entities %}{'_id': '{{e.name}}', 'uuid': '{{e.uuid}}', 'capacity': {{capacity.ivalue/(1000**3)}},} {% endfor %}]"
+"7":
+    extends: "6"
+"7.5": # Just easier than going through all of 8
+    extends: "7"
+    entities:
+      User:
+        extra_display:
+          - uuid
+      Volume:
+        extra_display:
+          - uuid
+      KeyPair:
+        extra_display:
+          - uuid
+      Target:
+        extra_display:
+          - uuid
+      # Client: problem in management between 3.1 and master.  Add uuid for client in 9
+      VPG:
+        extra_display:
+          - uuid
+      Drive:
+        extra_display:
+          - uuid
+      ConfigProfile:
+        extra_display:
+          - uuid
+"8":
+    extends: "7.5"
+    features:
+      encryption: true
+    entities:
+      User:
+        ops:
+            changePassword:
+              help: Change password
+              opts:
+                password:
+                  required: true
+              style: none
+              payload: '{"password": "{{password}}", "confirmationPassword": "{{password}}"}'
+      Attachment:
+        rest2infra:
+          ioEnabled: io_enabled
+
+      ConfigProfile:
+        ops:
+          apply:
+            opts:
+              hosts:
+                type: Client
+                required: true
+                multi: true
+            batch_op:
+              key: hosts
+            style: one
+            payload: |
+                  {
+                      "name": "{{entities[0].name}}", "uuid":"{{entities[0].uuid}}",
+                      "nodeIDs": [ {% for h in hosts %}"{{h._name}}", {% endfor %} ]
+                  }
+      Client:
+        ops:
+          attach:
+            opts:
+              is-detach-others:
+                type: bool
+                default: false
+            payload: |
+              { 'client': '{{entities[0]._name}}', 'volumes': [
+                {% for v in volume %}
+                  { 'name': '{{v.name}}',
+                    'uuid': '{{v.uuid}}', {% if mode %}'reservation': {
+                    'mode': '{{mode}}',
+                    'preempt': {{preempt}},
+                    'isDetachOthers': {{is_detach_others}},
+                    {% if reservation_version %}'version': {{reservation_version}},{% endif %}
+                    },{% endif %}
+                  },
+                {% endfor %}
+              ]}
+      VPG:
+        params: &v8_vpg_params
+          - *v1_vpg_params
+        ops:
+          create:
+            params: &v7_vpg_create_params
+              - *v1_vpg_create_params
+              - allowOverflow
+              - isEncrypted
+              - encryption
+      Volume:
+        ops:
+          create:
+            params:
+              - *additional_volume_params_with_capacity
+              - isEncrypted
+              - encryption
+          initEncryption:
+            help: Initialize keys for encrypted volume
+            opts:
+              passphrase:
+                required: true
+              slot:
+                type: int
+              numberOfSlots:
+                type: int
+              keySize:
+                choices: [256, 512]
+            style: entities
+            payload: |
+              [{% for e in entities %}
+                {
+                  '_id': '{{e.name}}', 'uuid': '{{e.uuid}}',
+                  {% if passphrase %} 'passphrase': '{{passphrase}}',  {% endif %}
+                  {% if slot or slot == 0 %} 'slot': {{slot}},  {% endif %}
+                  {% if numberOfSlots %} 'numberOfSlots': {{numberOfSlots}},  {% endif %}
+                  {% if key_size %} 'keySize': {{key_size}},  {% endif %}
+                },
+              {% endfor %}]
+          addPassphrase:
+            help: Add a passphrase for encrypted volume
+            opts:
+              currentPassphrase:
+                required: true
+              newPassphrase:
+                required: true
+              slot:
+                type: int
+            style: entities
+            payload: |
+              [{% for e in entities %}
+                {
+                  '_id': '{{e.name}}', 'uuid': '{{e.uuid}}',
+                  'currentPassphrase': '{{current_passphrase}}',
+                  'newPassphrase': '{{new_passphrase}}',
+                  {% if slot or slot == 0 %} 'slot': {{slot}},  {% endif %}
+                }
+              {% endfor %}]
+          deletePassphrase:
+            help: Delete a passphrase for encrypted volume
+            opts:
+              currentPassphrase:
+                required: true
+              slot:
+                type: int
+            style: entities
+            payload: |
+              [{% for e in entities %}
+                {
+                  '_id': '{{e.name}}', 'uuid': '{{e.uuid}}',
+                  'currentPassphrase': '{{current_passphrase}}',
+                  {% if slot or slot == 0 %} 'slot': {{slot}},  {% endif %}
+                }
+              {% endfor %}]
+          rotatePassphrase:
+            help: Rotate a passphrase for encrypted volume
+            opts:
+              currentPassphrase:
+                required: true
+              newPassphrase:
+                required: true
+              slot:
+                type: int
+            style: entities
+            payload: |
+              [{% for e in entities %}
+                {
+                  '_id': '{{e.name}}', 'uuid': '{{e.uuid}}',
+                  'currentPassphrase': '{{current_passphrase}}',
+                  'newPassphrase': '{{new_passphrase}}',
+                  {% if slot or slot == 0 %} 'slot': {{slot}},  {% endif %}
+                }
+              {% endfor %}]
+
+"9":
+  extends: "8"
+  drops:
+    - entities.Volume.ops.snapshot-create-and-attach
+    - entities.Volume.ops.snapshot-detach-and-delete
+    # NOTE: leave Volume.ops.delete (including payload, because it has other confirm, etc.)
+    - entities.User.ops.delete
+    - entities.VPG.ops.delete
+    - entities.ConfigProfile.ops.delete
+    # TODO: It would be good to have entities[_default], and to put THERE delete.payload
+  features:
+    use_uuids: true
+  entities:
+    Volume:
+      params: &v9_vol_params
+      - *volume_params_sans_capacity
+      - sourceID
+    Target:
+      ops:
+        delete:
+          payload: "[{% for e in entities %}{ '_id': '{{e._name}}', 'uuid': '{{e.uuid}}'}, {% endfor %}]"
+        delete-nic:
+          payload: "[{'nicID': '{{nic_id}}', 'targetID': '{{entities[0]._name}}', 'targetUUID': '{{entities[0].uuid}}'}]"
+        evict:
+          help: Delete a server while evicting all of it's drives
+          style: entities
+          payload: "[{% for e in entities %}{ '_id': '{{e._name}}', 'uuid': '{{e.uuid}}'}, {% endfor %}]"
+        set-zone:
+          payload: |
+            {
+              'zoneID': {{zone}},
+              'targets': [
+                {% for e in entities %}
+                  { '_id': '{{e._name}}', 'uuid': '{{e.uuid}}' },
+                {% endfor %}
+              ]
+            }
+    Client:
+      ops:
+        delete:
+          payload: "[{% for e in entities %}{ '_id': '{{e._name}}', 'uuid': '{{e.uuid}}'}, {% endfor %}]"
+        attach:
+          opts:
+            emulation_mode: &emulation_modes
+              consts_key: emulationModeNames
+              choices: ['NONE', 'STATIC', 'HOTPLUG']
+          payload: |
+            { 'client': '{{entities[0]._name}}', 'clientUUID': '{{entities[0].uuid}}', 'volumes': [
+              {% for v in volume %}
+                { 'name': '{{v.name}}',
+                  'uuid': '{{v.uuid}}', 
+                  {% if mode %}'reservation': {
+                    'mode': '{{mode}}',
+                    'preempt': {{preempt}},
+                    'isDetachOthers': {{is_detach_others}},
+                    {% if reservation_version %}'version': {{reservation_version}},{% endif %}
+                  },{% endif %}
+                  {% if emulation_mode %}'emulation': {
+                    'mode': '{{emulation_mode}}'
+                  },{% endif %}
+                },
+              {% endfor %}
+            ]}
+        detach:
+          payload: |
+            { 'client': '{{entities[0]._name}}', 'clientUUID': '{{entities[0].uuid}}', 'volumes': [
+              {% for v in volume %} { 'name': '{{v.name}}', 'uuid': '{{v.uuid}}', 'force': {{force}} }, {% endfor %}
+            ]}
+        set-emulation-mode:
+          help: Set emulation mode on a UM client volume attachments
+          style: one
+          opts:
+            volume:
+              required: true
+              multi: true
+              type: Volume
+            emulation_mode:
+              <<: *emulation_modes
+          batch_op:
+            key: volume
+          route: setEmulationMode
+          payload: |
+            { 'client': '{{entities[0]._name}}', 'clientUUID': '{{entities[0].uuid}}', 'volumes': [
+              {% for v in volume %} { 'name': '{{v.name}}', 'uuid': '{{v.uuid}}', 'emulation': { 'mode': '{{emulation_mode}}' } }, {% endfor %}
+            ]}
+    Drive:
+      ops:
+        delete:
+          style: entities
+          payload: "[{% for e in entities %}{ '_id': '{{e.name}}', 'uuid': '{{e.uuid}}'}, {% endfor %}]"
+        evict:
+          style: entities
+          payload: "[{% for e in entities %}{ 'diskID': '{{e.name}}', 'uuid': '{{e.uuid}}'}, {% endfor %}]"
+        format:
+          route: formatDiskByIdsAndUUIDs
+          style: entities
+          payload: |
+            {
+              'disks': [
+                {% for e in entities %}
+                  { '_id': '{{e.name}}', 'uuid': '{{e.uuid}}' },
+                {% endfor %}
+              ],
+              {% if format_type %} 'formatType': '{{format_type}}',{% endif %}
+            }
+"10":
+  extends: "9"
+  features:
+    multi-attach: true
+  entities:
+      Client:
+        prop2proj:
+          '*': isUmClient
+        ops:
+          attach:
+            opts:
+              reference_id:
+                required: false
+            payload: |
+              { 'client': '{{entities[0]._name}}', 'clientUUID': '{{entities[0].uuid}}', 'volumes': [
+                {% for v in volume %}
+                  { 'name': '{{v.name}}',
+                    'uuid': '{{v.uuid}}',
+                    {% if reference_id %}'referenceID': '{{reference_id}}',{% endif %}
+                    {% if mode %}'reservation': {
+                      'mode': '{{mode}}',
+                      'preempt': {{preempt}},
+                      'isDetachOthers': {{is_detach_others}},
+                      {% if reservation_version %}'version': {{reservation_version}},{% endif %}
+                    },{% endif %}
+                    {% if emulation_mode %}'emulation': {
+                      'mode': '{{emulation_mode}}'
+                    },{% endif %}
+                  },
+                {% endfor %}
+              ]}
+          detach:
+            opts:
+              reference_id:
+                required: false
+            payload: |
+              { 'client': '{{entities[0]._name}}', 'clientUUID': '{{entities[0].uuid}}', 'volumes': [
+                {% for v in volume %} {
+                  'name': '{{v.name}}', 'uuid': '{{v.uuid}}', 'force': {{force}},
+                  {% if reference_id %}'referenceID': '{{reference_id}}',{% endif %}
+                }, {% endfor %}]}
+
+
+"11":
+  extends: "10"
+  features:
+    partial-update: true
+  entities:
+    UpgradeAgent:
+      dbkey: hostname
+      route: upgradeAgents
+      prop2proj:
+        operating_system: upgradeAgentData
+        kernel_version: upgradeAgentData
+        architecture: upgradeAgentData
+        ofed_version: upgradeAgentData
+        nvmesh_versions: upgradeAgentData
+      display:
+        - hostname
+        - operating_system
+        - kernel_version
+        - architecture
+        - ofed_version
+        - nvmesh_versions
+        - dateModified
+        - lastReceivedKeepAlive
+        - status
+      ops:
+        delete:
+          help: Delete one or more specified upgrade agents
+          route: delete
+          style: entities
+          payload: "[{% for e in entities %}{ '_id': '{{e.hostname}}', 'uuid': '{{e.uuid}}' }, {% endfor %}]"
+    Upgrade:
+      dbkey: uuid
+      route: upgrades
+      prop2proj:
+        machines: machinesToUpgrade
+      display:
+        - uuid
+        - destinationVersion
+        - executionMode
+        - minRedundancyLevel
+        - machines
+        - status
+        - modifiedBy
+        - dateModified
+      params: &v12_upgrade_params
+        - destinationVersion
+        - executionMode
+        - minRedundancyLevel
+        - machinesToUpgrade
+      ops:
+        start:
+          help: Start an upgrade
+          route: startUpgrade
+          style: one
+          payload: '{ "_id": "{{entities[0].uuid}}" }'
+        resume:
+          help: Resume an upgrade
+          route: resumeUpgrade
+          style: one
+          payload: '{ "_id": "{{entities[0].uuid}}" }'
+    UpgradeStep:
+      route: upgradeSteps
+      dbkey: _id
+      rest2infra:
+        _id: uuid
+      prop2proj:
+        cmd: command
+        args: command
+      display:
+        - uuid
+        - upgradeID
+        - stepIndex
+        - hostname
+        - status
+        - startCondition
+        - cmd
+        - args
+        - dateModified
+      ops:
+        setBreakpoint:
+          help: Set/Clear breakpoint on UpgradeStep
+          route: setBreakpoint
+          style: one
+          opts:
+            clear:
+              type: bool
+              default: false
+          payload: '{ "upgradeStepID": "{{entities[0].uuid}}", "isBreakpointSet": {{not clear}} }'
+"12":
+  extends: "11"
+  entities:
+    VPG:
+      params: &v12_vpg_params
+        - *v8_vpg_params
+        - allowAllocationOnOfflineDrives
+      ops:
+        extend:
+          opts:
+            allowAllocationOnOfflineDrives:
+              type: bool
+          payload: |
+            [{% for e in entities %}
+                {
+                  '_id': '{{e.name}}', 'uuid': '{{e.uuid}}', 'capacity': {{capacity.ivalue/(1000**3)}}
+                  {% if allowAllocationOnOfflineDrives %}, 'allowAllocationOnOfflineDrives': True {% endif %}
+                }
+            {% endfor %}]
+    Volume:
+      params: &v12_vol_params
+        - *v9_vol_params
+        - allowAllocationOnOfflineDrives
+      ops:
+        rebuild:
+          opts:
+            allowAllocationOnOfflineDrives:
+              type: bool
+          payload: |
+            [{% for e in entities %}
+                {
+                  '_id': '{{e.name}}', 'uuid': '{{e.uuid}}',
+                  {% if allowAllocationOnOfflineDrives %}, 'allowAllocationOnOfflineDrives': True {% endif %}
+                }{% if not loop.last %},{% endif %}
+            {% endfor %}]
+        extend:
+          opts:
+            allowAllocationOnOfflineDrives:
+              type: bool
+          payload: |
+            [{% for e in entities %}
+                {
+                  '_id': '{{e.name}}', 'uuid': '{{e.uuid}}',
+                  'capacity': {% if capacity.ivalue == -1 %}'MAX'{% else %}{{capacity.ivalue/(1000**3)}}{% endif %}
+                  {% if allowAllocationOnOfflineDrives %}, 'allowAllocationOnOfflineDrives': True {% endif %}
+                }
+            {% endfor %}]
+"14":
+  extends: "12"
+  entities:
+    UpgradeStep:
+      ops:
+        markAsCompleted:
+          help: Mark UpgradeStep as completed
+          route: markAsCompleted
+          style: one
+          payload: '{ "upgradeStepID": "{{entities[0].uuid}}" }'
+    Upgrade:
+      params: &v14_upgrade_params
+        - *v12_upgrade_params
+        - skipMachinesOnFailure
+        - maxErrorsThreshold
+      ops:
+        skipFailedMachine:
+          help: Mark UpgradeStep as completed
+          route: skipFailedMachine
+          style: one
+          payload: '{ "_id": "{{entities[0].uuid}}" }'
+"15":
+  extends: "14"
+  features:
+    has-defaults: true
+    update-machines-hosts: true
+  entities:
+    Volume:
+      params: &v15_vol_params
+      - *v12_vol_params
+      - metadata
+    Upgrade:
+      ops:
+        create:
+          params:
+            - maxConcurrentClients

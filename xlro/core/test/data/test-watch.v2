@@ -1,0 +1,5 @@
+This is changed multiline content,
+but there are no changes to the actual values - so no event should be generated.
+with an embedded name=Joe and an associated value: husband, after which we have other text
+And another example to provide multiple pattern matches
+with another embedded name=Deb and an associated value: wife, after which we have other text
