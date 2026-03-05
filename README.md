@@ -27,3 +27,14 @@ TOMA is part of the storage target
 
 This repo contains software infrastructure for testing NVMesh and the NVMesh CLI tool's source code.
 
+## NVMesh Open Source Repositories List
+* https://github.com/NVIDIA/nvmesh-documentation
+* https://github.com/NVIDIA/nvmesh-interop-db
+* https://github.com/NVIDIA/nvmesh-infra
+* https://github.com/NVIDIA/nvmesh-kernel
+* https://github.com/NVIDIA/nvmesh-management
+* https://github.com/NVIDIA/nvmesh-upgrader
+* https://github.com/Excelero/nvmesh-csi-driver
+
+The NVMesh Roadmap is published in the documentation repo
+
