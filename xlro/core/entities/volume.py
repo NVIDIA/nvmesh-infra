@@ -504,7 +504,7 @@ class Volume(SDKEntity):
     combined_health : str = PropertySpec(str, readonly=True)
     is_snapshot : bool = PropertySpec(bool)
     sourceID : str = PropertySpec(str)
-    sourceUUID : UUID = PropertySpec(UUID)
+    sourceUUID : str = PropertySpec(str)  # may be a UUID string or sentinel e.g. 'sync_flush' for TPVs
     metadataVolumeID : str = PropertySpec(str)
     isReadOnly : bool = PropertySpec(bool, default=False)
     isEncrypted : bool = PropertySpec(bool, default=False)
@@ -596,7 +596,7 @@ class Volume(SDKEntity):
             vol_dict['mdv'] = self.sub_volumes['MDV'].to_foreign_sdk_entity(local_only=local_only)
 
         if 'sourceID' in vol_dict:
-            vol_dict['sourceUUID'] = Volume.instance(name=vol_dict['sourceID']).uuid
+            vol_dict['sourceUUID'] = str(Volume.instance(name=vol_dict['sourceID']).uuid)
 
         if not vol_dict.get('isEncrypted'):
             vol_dict.pop('encryption', None)
@@ -1210,6 +1210,10 @@ class TPV(Volume):
     @classmethod
     def _get_filter(cls, mgmt=None, **kwargs):
         return [MongoObj('volumeClass', 'TPV')] + super()._get_filter(mgmt, **kwargs)
+
+    @property
+    def cdv(self):
+        return self.tpvConfig.cdvId if self.tpvConfig else None
 
 
 @sdk_entity(sourcetypes=[SourceTypes.MANAGEMENT])

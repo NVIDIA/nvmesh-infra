@@ -812,7 +812,8 @@ class RestGroup(click.Group):
             _logger.debug(f'P2P mapping: {p2p}, Projection fields: {proj_fields}')
             projection = [MongoObj(pf, 1) for pf in proj_fields]
         if not names:
-            return list(obj.entity._sdk_get(page=page, count=count, mgmt=obj.manager, sort_mongo_objs=sort_obj, projection_mongo_objs=projection, routes=routes))
+            filter_objs = obj.entity._get_filter(obj.manager)
+            return list(obj.entity._sdk_get(page=page, count=count, mgmt=obj.manager, filter_mongo_objs=filter_objs, sort_mongo_objs=sort_obj, projection_mongo_objs=projection, routes=routes))
         # Multi-patterns must be joined (vs. names where we use "in (name1, name2)")
         if len(names) > 1 and any([Utils.is_pattern(n) for n in names]):
             # raise Exception('Only a single, stand-alone pattern is supported.')

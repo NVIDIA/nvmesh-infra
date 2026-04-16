@@ -21,12 +21,12 @@ from .host import Host, Process, Service, BaseService
 from .client import Client, ClientNode, Attachment, ClientVolumeTopology
 from .target import Target
 from .drive import Drive, GPT, DriveStatus
-from .volume import Chunk, Segment, Partition, Volume, PRaid, Block, VolumeSecurityGroup, KeyPair, SubVolume
+from .volume import Chunk, Segment, Partition, Volume, PRaid, Block, VolumeSecurityGroup, KeyPair, SubVolume, CDV, TPV
 from .mgmt_host import MgmtHost
 from .manager import Manager
 from .vpg import VPG, DriveClass, TargetClass
 from .network import Node, NIC, BaseSwitch, MellanoxSwitch, SwitchPort, ROCEPort, TCPPort, IBPort, DellSwitch, CumulusSwitch, SupermicroSwitch,HostPort, CiscoSwitch, BasePort, UnmanagedMellanoxSwitch, VirtualSwitch, UnknownSwitch, BFRepresentorPort
-from .mrsp import MRSP, Controller, MDrive, NVMESHBdev, TPV, Subsystem, MDrivePair
+from .mrsp import MRSP, Controller, MDrive, NVMESHBdev, MrspTPV, Subsystem, MDrivePair
 from .mrsp_client import MRSPLinuxClient, BlueField, MRSPWindowsClient, NVMEDevice, MRSPClient
 from .nvnode import NvNode
 from .topology import PraidTopology, SegmentTopology

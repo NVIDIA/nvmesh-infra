@@ -13,7 +13,7 @@ import re
 
 
 @entity(sourcetypes=[SourceTypes.MRSP_RPC_CONTROLLER1, SourceTypes.MRSP_RPC_CONTROLLER2])
-class TPV(BaseEntity):
+class MrspTPV(BaseEntity):
     id : str = PropertySpec(str, key=True)
     size : int = PropertySpec(int)
     namespace : int = PropertySpec(int)
@@ -44,7 +44,7 @@ class Subsystem(BaseEntity):
     ip : str = PropertySpec(str, key=True)
     port : int = PropertySpec(int)
     sn : str = PropertySpec(str)
-    tpvs : List[TPV] = PropertySpec([TPV])
+    tpvs : List[MrspTPV] = PropertySpec([MrspTPV])
     connected_hosts : List[Host] = PropertySpec([Host])
 
     @prop_loader([SourceTypes.MRSP_RPC_CONTROLLER1, SourceTypes.MRSP_RPC_CONTROLLER2], ['connected_hosts'])
@@ -121,7 +121,7 @@ class Controller(BaseEntity):
     def _get_tpv_by_rpc_id(self, tpv_id):
         rpc_response = self.send_rpc_request('nvmesh_list_bdevs')
         json_response = json.loads(rpc_response[0])
-        return TPV.instance(id=json_response[tpv_id]['name'])
+        return MrspTPV.instance(id=json_response[tpv_id]['name'])
 
     @prop_loader(SourceTypes.MRSP_RPC, ['recovery_state'])
     def _load_recovery_state(self):
@@ -147,13 +147,13 @@ class Controller(BaseEntity):
             match_dict.update({k: v for (k, v) in m.groupdict().items() if v})
 
         return Subsystem.instance(id=match_dict['nqn'], ip=match_dict['ip'], port=match_dict['port'],
-                                  sn=match_dict['sn'], tpvs=[TPV.from_dict(m.groupdict())
+                                  sn=match_dict['sn'], tpvs=[MrspTPV.from_dict(m.groupdict())
                                                              for m in re.finditer(Controller.NAMESPACE_REGEX,
                                                                                   section_items)])
 
     @staticmethod
     def _create_tpv_from_text(section_items):
-        return [TPV.instance(id=m.group('name'), size=m.group('size')) for m in re.finditer(Controller.TPV_REGEX,
+        return [MrspTPV.instance(id=m.group('name'), size=m.group('size')) for m in re.finditer(Controller.TPV_REGEX,
                                                                                             section_items)]
 
     @staticmethod

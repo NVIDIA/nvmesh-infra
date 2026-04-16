@@ -9,7 +9,7 @@ from builtins import range
 from typing import List
 from xlro.core.entities.base import *
 from xlro.core.entities.host import Host, Service
-from xlro.core.entities.mrsp import TPV, Subsystem
+from xlro.core.entities.mrsp import MrspTPV, Subsystem
 import re
 import json
 from abc import ABCMeta, abstractmethod
@@ -20,7 +20,7 @@ class NVMEDevice(BaseEntity):
     id : str = PropertySpec(str, key=True)
     client : 'MRSPClient' = PropertySpec('MRSPClient', key=True)
     subsystems : List[Subsystem] = PropertySpec([Subsystem], transient=True)
-    tpv : TPV = PropertySpec(TPV)
+    tpv : MrspTPV = PropertySpec(MrspTPV)
 
     @prop_loader(SourceTypes.OS, ['subsystems'])
     def _load_subsystems(self):
