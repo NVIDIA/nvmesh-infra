@@ -1268,14 +1268,16 @@
           route: tpv/extend
           style: one
           opts:
-            newSizeGb:
-              type: float
+            newSize:
+              type: SIZE
               required: true
-          payload: "{'tpvId': '{{entities[0].name}}', 'newSizeGB': {{new_size_gb}}}"
+              help: New virtual size (e.g. 16GiB, 20GB)
+          payload: "{'tpvId': '{{entities[0].name}}', 'newSizeGB': {{new_size.ivalue / (1024**3)}}}"
         create:
           wait:
             prop_name: 'status'
             values: ['online', 'offline', 'degraded', 'unavailable']
             is_matching: true
           params:
+            - capacity
             - tpvConfig

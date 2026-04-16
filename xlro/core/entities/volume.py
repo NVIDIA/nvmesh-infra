@@ -81,7 +81,6 @@ class TPVConfig(SdkObject):
     # camelCase names must match what the management server expects
     cdvId            : str    # required; parent CDV name/_id
     tpvExtentSizeKB  : int    # power-of-2 in range [64, 65536] KB
-    virtualSizeGB    : float  # current virtual size
     cdvName          : str    # readonly; denormalized by the server
     exclusiveClient  : str    # readonly; set when a client attaches
 
