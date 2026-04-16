@@ -482,7 +482,7 @@ class RestGroup(click.Group):
                         help='Comma seperated fields to show (besides ID/Name) - case insensitive, use "-" for space'),
                 ]))
 
-        waitable = ('client', 'target', 'drive', 'volume')
+        waitable = ('client', 'target', 'drive', 'volume', 'cdv', 'tpv')
         if 'wait' not in self.commands and name.lower() in waitable:
             # Add generic Wait command.
             self.add_command(click.Command(name='wait', callback=self.do_wait, help='Wait for a property to reach a desired value',

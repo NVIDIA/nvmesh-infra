@@ -967,3 +967,17 @@
 8:Management:managementVersion
 8:Management:outbound_socket_status
 8:Management:useSSL
+15:CDV:action
+15:CDV:capacity
+15:CDV:cdvConfig
+15:CDV:description
+15:CDV:health
+15:CDV:name
+15:CDV:status
+15:CDV:tpvCount
+15:TPV:action
+15:TPV:description
+15:TPV:health
+15:TPV:name
+15:TPV:status
+15:TPV:tpvConfig

@@ -1187,3 +1187,94 @@
         create:
           params:
             - maxConcurrentClients
+
+    # ── Thin Provisioning ─────────────────────────────────────────────────────
+
+    CDV:
+      route: volumes
+      dbkey: name
+      rest2infra:
+        <<: *volume_r2i
+      # All standard volume params are mutable on a CDV; cdvConfig is the sole
+      # immutable exception and therefore appears only under ops.create.params.
+      params: *volume_params
+      display:
+        - name
+        - description
+        - health
+        - status
+        - action
+        - capacity
+        - tpvCount
+        - cdvConfig
+      ops:
+        rebuild:
+          help: Rebuild a CDV
+          route: rebuildVolumes
+          style: keys
+          payload: "{{entities}}"
+        delete:
+          confirm: |
+            WARNING: You are about to delete a Capacity Data Volume and any drive allocations will be zeroed,
+            making recovery impossible.
+            Are you sure you want to continue?
+          payload: "[{% for e in entities %}{ '_id': '{{e.name}}', 'uuid': '{{e.uuid}}'}, {% endfor %}]"
+          wait:
+            <<: *wait_for_vol_delete
+        create:
+          wait:
+            prop_name: 'status'
+            values: ['online', 'offline', 'degraded']
+            is_matching: true
+          params:
+            - cdvConfig
+            - RAIDlevel
+            - stripeWidth
+            - stripeSize
+            - numberOfMirrors
+            - dataBlocks
+            - parityBlocks
+            - protectionLevel
+            - ignoreNodeSeparation
+
+    TPV:
+      route: volumes
+      dbkey: name
+      rest2infra:
+        <<: *volume_r2i
+      params:
+        - name
+        - description
+      display:
+        - name
+        - description
+        - health
+        - status
+        - action
+        - tpvConfig
+      ops:
+        delete:
+          confirm: |
+            WARNING: You are about to delete a Thin-Provisioned Volume.
+            Are you sure you want to continue?
+          route: tpv/delete
+          style: entities
+          payload: "[{% for e in entities %}{'_id': '{{e.name}}'}, {% endfor %}]"
+          wait:
+            <<: *wait_for_vol_delete
+        extend:
+          help: Extend the virtual size of a TPV
+          route: tpv/extend
+          style: one
+          opts:
+            newSizeGb:
+              type: float
+              required: true
+          payload: "{'tpvId': '{{entities[0].name}}', 'newSizeGB': {{new_size_gb}}}"
+        create:
+          wait:
+            prop_name: 'status'
+            values: ['online', 'offline', 'degraded', 'unavailable']
+            is_matching: true
+          params:
+            - tpvConfig

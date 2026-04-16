@@ -70,6 +70,21 @@ class MDVSpec(SdkObject):
 class EncryptionObj(SdkObject):
     headerSize: int = 16
 
+class CDVConfig(SdkObject):
+    """Configuration for a Capacity Data Volume."""
+    cdvExtentSizeMB : int  # power-of-2 in range [64, 65536] MB
+    allocatorSizeGB : int  # size of the allocator metadata region; default 1
+    maxTPVs         : int  # max number of TPVs allowed on this CDV; default 512
+
+class TPVConfig(SdkObject):
+    """Configuration for a Thin-Provisioned Volume."""
+    # camelCase names must match what the management server expects
+    cdvId            : str    # required; parent CDV name/_id
+    tpvExtentSizeKB  : int    # power-of-2 in range [64, 65536] KB
+    virtualSizeGB    : float  # current virtual size
+    cdvName          : str    # readonly; denormalized by the server
+    exclusiveClient  : str    # readonly; set when a client attaches
+
 @sdk_entity(sourcetypes=[SourceTypes.LOCAL, SourceTypes.MANAGEMENT, SourceTypes.PROC])
 class Chunk(SDKEntity):
     name : str = PropertySpec(str, key=True)
@@ -502,6 +517,13 @@ class Volume(SDKEntity):
 
     # Note: can be None. Too hard to differentiate projection from actual missing mdvSpec
     mdvSpec: Optional[MDVSpec] = PropertySpec(MDVSpec)
+
+    # Thin-provisioning discriminator and sub-configs
+    volumeClass : str                       = PropertySpec(str)
+    cdvConfig   : Optional[CDVConfig]       = PropertySpec(CDVConfig)
+    tpvConfig   : Optional[TPVConfig]       = PropertySpec(TPVConfig)
+    tpvCount    : int                       = PropertySpec(int, readonly=True)
+
     _action_shadows_status = None
 
     PENDING = 'pending'
@@ -1163,6 +1185,32 @@ class Volume(SDKEntity):
     @property
     def drives_(self):
         return set(s.diskID for c in self.chunks for p in c.pRaids for s in p.diskSegments)
+
+@sdk_entity(sourcetypes=[SourceTypes.LOCAL, SourceTypes.MANAGEMENT])
+class CDV(Volume):
+    """Capacity Data Volume — a Volume with volumeClass='CDV'.
+
+    Overrides _get_filter so every _sdk_get call (show, dicts_by_name,
+    delete pre-fetch) is automatically restricted to CDV volumes.
+    """
+
+    @classmethod
+    def _get_filter(cls, mgmt=None, **kwargs):
+        return [MongoObj('volumeClass', 'CDV')] + super()._get_filter(mgmt, **kwargs)
+
+
+@sdk_entity(sourcetypes=[SourceTypes.LOCAL, SourceTypes.MANAGEMENT])
+class TPV(Volume):
+    """Thin-Provisioned Volume — a Volume with volumeClass='TPV'.
+
+    Overrides _get_filter so every _sdk_get call (show, dicts_by_name,
+    delete pre-fetch) is automatically restricted to TPV volumes.
+    """
+
+    @classmethod
+    def _get_filter(cls, mgmt=None, **kwargs):
+        return [MongoObj('volumeClass', 'TPV')] + super()._get_filter(mgmt, **kwargs)
+
 
 @sdk_entity(sourcetypes=[SourceTypes.MANAGEMENT])
 class KeyPair(SDKEntity):

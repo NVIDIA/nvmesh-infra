@@ -18,7 +18,7 @@ from xlro.core.util.general_utils import host_name
 
 from xlro.core.util.ssh import Connection
 from xlro.tools.cli.rest_click import RestContext, RestGroup, rest_callback, get_rest_context, EntityOption, e_auto_complete_ids, auto_complete_multi_choices
-from xlro.tools.cli.common import GET_LIMIT, OUTPUT_FORMATS, confirm, is_no_prompt, success_msg, FieldNotAvailable, \
+from xlro.tools.cli.common import GET_LIMIT, OUTPUT_FORMATS, confirm, is_no_prompt, success_msg, failure_msg, FieldNotAvailable, \
     warn_msg
 
 from xlro.core.util.cli_util import raw_to_snake, snake_to_human
@@ -265,3 +265,71 @@ class ManagementGroup(RestGroup):
                 click.echo(format_smart_table(rows, headers))
 
         return True
+
+
+# ── Thin Provisioning ─────────────────────────────────────────────────────────
+
+class CDVGroup(RestGroup):
+    """RestGroup override for CDV (Capacity Data Volume).
+
+    Injects volumeClass='CDV' into every create payload so the management
+    server stores the volume with the correct discriminator.  All filtering
+    (show/delete/update fetches) is handled by CDV._get_filter in volume.py.
+    """
+    logger = logging.getLogger('CDVGroup')
+
+    def _process_kwargs(self, rest_ctx: RestContext, kwargs: Dict) -> Dict:
+        processed = super()._process_kwargs(rest_ctx, kwargs)
+        if click.get_current_context().command.name == 'create':
+            processed['volumeClass'] = 'CDV'
+        return processed
+
+
+class TPVGroup(RestGroup):
+    """RestGroup override for TPV (Thin-Provisioned Volume).
+
+    * Injects volumeClass='TPV' on create.
+    * Redirects the auto-generated 'update' command to POST /volumes/tpv/update
+      instead of /volumes/update (which the management server does not support
+      for TPVs).  Both 'create' and 'update' share do_create as their callback
+      (set by RestGroup.set_update_create), so the interception happens there.
+    * TPV delete routing to /volumes/tpv/delete is handled entirely in rest.yaml
+      via ops.delete.route; no Python override is needed.
+    """
+    logger = logging.getLogger('TPVGroup')
+
+    def _process_kwargs(self, rest_ctx: RestContext, kwargs: Dict) -> Dict:
+        processed = super()._process_kwargs(rest_ctx, kwargs)
+        if click.get_current_context().command.name == 'create':
+            processed['volumeClass'] = 'TPV'
+        return processed
+
+    @rest_callback
+    def do_create(self, **kwargs):
+        ctx = click.get_current_context()
+        if ctx.command.name == 'update':
+            # TPV update must POST to /volumes/tpv/update.
+            _, rest_ctx = get_rest_context(ctx)
+            obj = ctx.obj
+            prop_values = self._process_kwargs(obj, kwargs)
+            keyprop = rest_ctx.rest_info.rest2infra.get(
+                rest_ctx.rest_info.dbkey, rest_ctx.rest_info.dbkey)
+            names = prop_values.pop(keyprop, [])
+            # Only description is mutable on a TPV via this route.
+            allowed = {'description'}
+            payload = [
+                {'_id': name, **{k: v for k, v in prop_values.items() if k in allowed}}
+                for name in names
+            ]
+            err, out = obj.entity._makePost(obj.manager, ['tpv', 'update'], payload)
+            if err:
+                raise Exception(f'TPV update failed: {err}')
+            response = True
+            for r in (out or []):
+                if r.get('success'):
+                    success_msg(f'[{r.get("_id", "")}] success')
+                else:
+                    response = False
+                    failure_msg(self.format_failure(r))
+            return out if response else False
+        return super().do_create(**kwargs)
