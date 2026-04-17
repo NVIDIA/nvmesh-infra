@@ -1257,15 +1257,10 @@
       display:
         - name
         - parent_cdv
-        - parentCDVUUID
         - health
         - status
         - action
         - capacity
-        - reservation_mode
-        - reserved_by
-        - reservation_version
-        - targets_
 
     TPV:
       route: volumes

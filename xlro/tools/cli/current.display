@@ -979,13 +979,8 @@
 15:CDVMgmt:capacity
 15:CDVMgmt:health
 15:CDVMgmt:name
-15:CDVMgmt:parentCDVUUID
 15:CDVMgmt:parent_cdv
-15:CDVMgmt:reservation_mode
-15:CDVMgmt:reservation_version
-15:CDVMgmt:reserved_by
 15:CDVMgmt:status
-15:CDVMgmt:targets_
 15:TPV:action
 15:TPV:description
 15:TPV:health
