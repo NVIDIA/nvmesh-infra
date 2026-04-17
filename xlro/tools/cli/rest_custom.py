@@ -13,7 +13,6 @@ from urllib.parse import urlparse, urlunparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from humanfriendly.tables import format_robust_table, format_pretty_table, format_smart_table
 from xlro.core.entities import KeyPair, Log, SDKEntity, Drive, Target, Upgrade, Manager, SourceTypes
-from xlro.core.entities.etypes import Size
 from xlro.core.entities.manager import get_rest_server_name
 from xlro.core.util.general_utils import host_name
 
@@ -303,12 +302,6 @@ class TPVGroup(RestGroup):
         processed = super()._process_kwargs(rest_ctx, kwargs)
         if click.get_current_context().command.name == 'create':
             processed['volumeClass'] = 'TPV'
-            # management server's createTPV expects capacity in GiB (binary).
-            # The SDK's useGB conversion divides by 1000^3 (decimal GB), which
-            # would cause a ~7.4% size inflation (e.g. 8 GiB → 8.59 GiB).
-            # Convert here to a plain float in GiB so the SDK passes it through.
-            if isinstance(processed.get('capacity'), Size):
-                processed['capacity'] = processed['capacity'].ivalue / (1024 ** 3)
         return processed
 
     @rest_callback

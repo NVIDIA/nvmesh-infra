@@ -589,6 +589,13 @@ class Volume(SDKEntity):
         if vol_dict.get('capacity') == self.MAX_INT:
             vol_dict['capacity'] = self.MAX_STR
 
+        # management's createTPV expects capacity in binary GiB, but the SDK's
+        # useGB feature converts Size(bytes) → decimal GB (÷1000³), inflating
+        # the size by ~7.4% (e.g. 8 GiB → 8.59 GiB).  Override for TPV after
+        # the generic conversion has already run.
+        if vol_dict.get('volumeClass') == 'TPV' and isinstance(self.capacity, Size) and self.capacity > 0:
+            vol_dict['capacity'] = self.capacity.ivalue / (1024 ** 3)
+
         if vol_dict.get('parityBlocks') == 0:
             del vol_dict['parityBlocks']
         if 'mdv' in vol_dict and 'MDV' in self.sub_volumes:
