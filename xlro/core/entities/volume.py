@@ -522,6 +522,11 @@ class Volume(SDKEntity):
     cdvConfig   : Optional[CDVConfig]       = PropertySpec(CDVConfig)
     tpvConfig   : Optional[TPVConfig]       = PropertySpec(TPVConfig)
     tpvCount    : int                       = PropertySpec(int, readonly=True)
+    # CDV ↔ satellite linkage (CDV_MGMT volumes; see SatelliteVolumeForCDVAlloc.md)
+    allocatorVolumeId   : Optional[str]     = PropertySpec(str, readonly=True)
+    allocatorVolumeUUID : Optional[str]     = PropertySpec(str, readonly=True)
+    parentCDVId         : Optional[str]     = PropertySpec(str, readonly=True)
+    parentCDVUUID       : Optional[str]     = PropertySpec(str, readonly=True)
 
     _action_shadows_status = None
 
@@ -1220,6 +1225,32 @@ class TPV(Volume):
     @property
     def cdv(self):
         return self.tpvConfig.cdvId if self.tpvConfig else None
+
+
+@sdk_entity(sourcetypes=[SourceTypes.LOCAL, SourceTypes.MANAGEMENT])
+class CDVMgmt(Volume):
+    """Allocator-satellite volume — a Volume with volumeClass='CDV_MGMT'.
+
+    Every CDV is created together with a fixed-size '<cdvName>-mgmt' satellite
+    volume that holds the allocator metadata (header + extent records).  The
+    satellite is managed automatically by the system:
+      * Created atomically with its parent CDV (management).
+      * Attached EXCLUSIVE_READ_WRITE to the elected allocator TOMA via an
+        internal Kafka handshake.
+      * Deleted atomically when the parent CDV is deleted.
+
+    It is exposed in the CLI/SDK for inspection only — create, update,
+    delete, attach, and detach are not supported by design.  See
+    nvmesh-kernel/design/SatelliteVolumeForCDVAlloc.md.
+    """
+
+    @classmethod
+    def _get_filter(cls, mgmt=None, **kwargs):
+        return [MongoObj('volumeClass', 'CDV_MGMT')] + super()._get_filter(mgmt, **kwargs)
+
+    @property
+    def parent_cdv(self):
+        return self.parentCDVId
 
 
 @sdk_entity(sourcetypes=[SourceTypes.MANAGEMENT])

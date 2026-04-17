@@ -485,6 +485,12 @@
 [API 15] cdv wait property STRING (None)
 [API 15] cdv wait timeout INT ? (20)
 [API 15] cdv wait value STRING ... (None)
+[API 15] cdv-mgmt show
+[API 15] cdv-mgmt show fields STRING ? (None)
+[API 15] cdv-mgmt show limit INT ? (None)
+[API 15] cdv-mgmt show name STRING ? ... (None)
+[API 15] cdv-mgmt show output-format tabular|rows|json|list ? (None)
+[API 15] cdv-mgmt show skip INT ? (0)
 [API 15] tpv count
 [API 15] tpv create
 [API 15] tpv create cli-property STRING ? ... (None)

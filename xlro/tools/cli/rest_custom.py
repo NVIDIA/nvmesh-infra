@@ -285,6 +285,17 @@ class CDVGroup(RestGroup):
         return processed
 
 
+class CDVMgmtCLI(object):
+    """Disable all mutating operations for the allocator-satellite (CDV_MGMT)
+    volume.  The satellite is created/attached/deleted automatically with its
+    parent CDV and has no user-facing lifecycle — only 'show' is exposed.
+    """
+    create = Unsupported
+    update = Unsupported
+    delete = Unsupported
+    count = Unsupported
+
+
 class TPVGroup(RestGroup):
     """RestGroup override for TPV (Thin-Provisioned Volume).
 

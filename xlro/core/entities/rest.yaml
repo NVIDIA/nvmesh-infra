@@ -1237,6 +1237,36 @@
             - protectionLevel
             - ignoreNodeSeparation
 
+    CDVMgmt:
+      # Allocator-satellite volume (<cdvName>-mgmt).  Created and managed
+      # automatically alongside its parent CDV; exposed here for inspection
+      # only.  Create, update, delete, attach, and detach are not supported
+      # by design — management refuses all of them at the REST layer.  See
+      # nvmesh-kernel/design/SatelliteVolumeForCDVAlloc.md.
+      #
+      # Note: GET /volumes filters out CDV_MGMT by default (Phase 1.7); the
+      # SDK class CDVMgmt._get_filter sends {volumeClass: 'CDV_MGMT'} which
+      # the management handler passes through unchanged, so satellites are
+      # returned here without needing the ?includeSatellites=true flag.
+      route: volumes
+      dbkey: name
+      rest2infra:
+        <<: *volume_r2i
+      params:
+        - name
+      display:
+        - name
+        - parent_cdv
+        - parentCDVUUID
+        - health
+        - status
+        - action
+        - capacity
+        - reservation_mode
+        - reserved_by
+        - reservation_version
+        - targets_
+
     TPV:
       route: volumes
       dbkey: name
