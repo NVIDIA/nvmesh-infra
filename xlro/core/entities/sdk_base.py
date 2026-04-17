@@ -1097,7 +1097,7 @@ class SDKEntity(BaseEntity):
         results = cls._err2exc(sdk_result)
 
         only_successful = []
-        for i, result in enumerate(results):
+        for i, result in enumerate(results[:len(entities)]):
             if result['success']:
                 only_successful.append(entities[i])
             else:
