@@ -897,11 +897,17 @@ class Client(SDKEntity):
         '''
         is_multi_attach = False if ignore_refs else None
         relevant_attachments: list[Attachment] = []
-        # Breaking up the huge one-liner which was already unreadable before ref-id support...
+        # Limit to the volumes actually being waited on.  On combined client+target nodes the
+        # full attachment list also contains CDV (attached without isHidden for kernel I/O) and
+        # CDV_MGMT satellite volumes (attached to the TOMA role).  Those are not in clients_volumes
+        # and accessing a.volume.uuid for CDV_MGMT fails because the standard volumes API omits it.
+        requested_volume_names = {v.name for volumes in clients_volumes.values() for v in volumes}
         for c in clients_volumes:
             if is_multi_attach is None:
                 is_multi_attach = c.rest_feature('multi-attach') or False
             for a in c.get_property('attachments', source=source, no_cache=True).values():
+                if a.vname not in requested_volume_names:
+                    continue
                 if (not strip_hidden or not a.is_hidden) \
                         and (not is_multi_attach or str(reference_id or a.volume.uuid) in a.referenceIDs):
                     relevant_attachments.append(a)
