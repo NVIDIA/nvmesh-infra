@@ -776,7 +776,10 @@
               ]}
           preemptFromCdv:
             help: Forcibly evict a client from a CDV (fences all of the client's TPVs on that CDV)
-            route: clients/{{entities[0].name}}/preemptFromCDV/{{cdv}}
+            # CLI route templates are not Jinja-rendered (only payload is),
+            # so the endpoint uses a static route and takes clientID/cdvID in
+            # the body. Resolves to POST /clients/preemptFromCDV.
+            route: preemptFromCDV
             style: one
             opts:
               cdv:
@@ -786,7 +789,7 @@
                 type: str
                 required: true
                 help: Audit-log reason (free-form)
-            payload: "{'reason': '{{reason}}'}"
+            payload: "{'clientID': '{{entities[0].name}}', 'cdvID': '{{cdv.name}}', 'reason': '{{reason}}'}"
       VPG:
         params: &v8_vpg_params
           - *v1_vpg_params
