@@ -508,7 +508,7 @@ def snake_to_camel(s):
     return ''.join([(word[0].upper() + word[1:]) for word in s.split('_')])
 
 # All-Cap words
-all_caps = ['ssl', 'ip', 'nic', 'id', 'nvme', 'praid', 'pci', 'snap', 'uuid', 'tpv', 'acm', 'mtu', 'gid', 'guid', 'os', 'ofed']
+all_caps = ['ssl', 'ip', 'nic', 'id', 'nvme', 'praid', 'pci', 'snap', 'uuid', 'tpv', 'cdv', 'acm', 'mtu', 'gid', 'guid', 'os', 'ofed']
 _human_mapping = {w: w.upper() for w in all_caps}
 # Human words
 _human_mapping.update({
