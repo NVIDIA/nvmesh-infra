@@ -201,9 +201,13 @@
                       preempt:
                         type: bool
                         default: false
+                      admin-manual-operation:
+                        type: bool
+                        default: false
+                        help: Override the auto-managed rejection for CDV / CDV_MGMT volumes (admin debug/support flows)
                     style: one
                     payload: |
-                      { 'client': '{{entities[0]._name}}', 'volumes': [
+                      { 'client': '{{entities[0]._name}}', 'adminManualOperation': {{admin_manual_operation}}, 'volumes': [
                         {% for v in volume %}
                           { 'name': '{{v.name}}', {% if mode %}'reservation': {
                             'mode': '{{mode}}',
@@ -231,9 +235,13 @@
                       force:
                         type: bool
                         default: false
+                      admin-manual-operation:
+                        type: bool
+                        default: false
+                        help: Override the auto-managed rejection for CDV / CDV_MGMT volumes (admin debug/support flows)
                     style: one
                     payload: |
-                      { 'client': '{{entities[0]._name}}', 'volumes': [
+                      { 'client': '{{entities[0]._name}}', 'adminManualOperation': {{admin_manual_operation}}, 'volumes': [
                         {% for v in volume %} { 'name': '{{v.name}}', 'force': {{force}} }, {% endfor %}
                       ]}
                     all:
@@ -761,8 +769,12 @@
               is-detach-others:
                 type: bool
                 default: false
+              admin-manual-operation:
+                type: bool
+                default: false
+                help: Override the auto-managed rejection for CDV / CDV_MGMT volumes (admin debug/support flows)
             payload: |
-              { 'client': '{{entities[0]._name}}', 'volumes': [
+              { 'client': '{{entities[0]._name}}', 'adminManualOperation': {{admin_manual_operation}}, 'volumes': [
                 {% for v in volume %}
                   { 'name': '{{v.name}}',
                     'uuid': '{{v.uuid}}', {% if mode %}'reservation': {
@@ -779,6 +791,12 @@
             # CLI route templates are not Jinja-rendered (only payload is),
             # so the endpoint uses a static route and takes clientID/cdvID in
             # the body. Resolves to POST /clients/preemptFromCDV.
+            #
+            # Client entity: use `_name` (not `.name`). The Client's `name`
+            # property is typed HostName, which resolves via hostname lookup
+            # and commonly returns "localhost" instead of the operator's
+            # intended ID. Every other op that addresses a Client uses
+            # `{{entities[0]._name}}` (see attach / detach payloads above).
             route: preemptFromCDV
             style: one
             opts:
@@ -789,7 +807,7 @@
                 type: str
                 required: true
                 help: Audit-log reason (free-form)
-            payload: "{'clientID': '{{entities[0].name}}', 'cdvID': '{{cdv.name}}', 'reason': '{{reason}}'}"
+            payload: "{'clientID': '{{entities[0]._name}}', 'cdvID': '{{cdv.name}}', 'reason': '{{reason}}'}"
       VPG:
         params: &v8_vpg_params
           - *v1_vpg_params
@@ -931,10 +949,10 @@
               consts_key: emulationModeNames
               choices: ['NONE', 'STATIC', 'HOTPLUG']
           payload: |
-            { 'client': '{{entities[0]._name}}', 'clientUUID': '{{entities[0].uuid}}', 'volumes': [
+            { 'client': '{{entities[0]._name}}', 'clientUUID': '{{entities[0].uuid}}', 'adminManualOperation': {{admin_manual_operation}}, 'volumes': [
               {% for v in volume %}
                 { 'name': '{{v.name}}',
-                  'uuid': '{{v.uuid}}', 
+                  'uuid': '{{v.uuid}}',
                   {% if mode %}'reservation': {
                     'mode': '{{mode}}',
                     'preempt': {{preempt}},
@@ -949,7 +967,7 @@
             ]}
         detach:
           payload: |
-            { 'client': '{{entities[0]._name}}', 'clientUUID': '{{entities[0].uuid}}', 'volumes': [
+            { 'client': '{{entities[0]._name}}', 'clientUUID': '{{entities[0].uuid}}', 'adminManualOperation': {{admin_manual_operation}}, 'volumes': [
               {% for v in volume %} { 'name': '{{v.name}}', 'uuid': '{{v.uuid}}', 'force': {{force}} }, {% endfor %}
             ]}
         set-emulation-mode:
@@ -1002,8 +1020,12 @@
             opts:
               reference_id:
                 required: false
+              admin-manual-operation:
+                type: bool
+                default: false
+                help: Override the auto-managed rejection for CDV / CDV_MGMT volumes (admin debug/support flows)
             payload: |
-              { 'client': '{{entities[0]._name}}', 'clientUUID': '{{entities[0].uuid}}', 'volumes': [
+              { 'client': '{{entities[0]._name}}', 'clientUUID': '{{entities[0].uuid}}', 'adminManualOperation': {{admin_manual_operation}}, 'volumes': [
                 {% for v in volume %}
                   { 'name': '{{v.name}}',
                     'uuid': '{{v.uuid}}',
@@ -1024,8 +1046,12 @@
             opts:
               reference_id:
                 required: false
+              admin-manual-operation:
+                type: bool
+                default: false
+                help: Override the auto-managed rejection for CDV / CDV_MGMT volumes (admin debug/support flows)
             payload: |
-              { 'client': '{{entities[0]._name}}', 'clientUUID': '{{entities[0].uuid}}', 'volumes': [
+              { 'client': '{{entities[0]._name}}', 'clientUUID': '{{entities[0].uuid}}', 'adminManualOperation': {{admin_manual_operation}}, 'volumes': [
                 {% for v in volume %} {
                   'name': '{{v.name}}', 'uuid': '{{v.uuid}}', 'force': {{force}},
                   {% if reference_id %}'referenceID': '{{reference_id}}',{% endif %}
