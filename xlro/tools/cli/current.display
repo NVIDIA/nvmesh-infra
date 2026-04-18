@@ -986,7 +986,9 @@
 15:CDVMgmt:status
 15:TPV:action
 15:TPV:description
+15:TPV:encryption
 15:TPV:health
+15:TPV:isEncrypted
 15:TPV:name
 15:TPV:status
 15:TPV:tpvConfig

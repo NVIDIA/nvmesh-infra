@@ -499,6 +499,8 @@
 [API 15] tpv create name STRING (None)
 [API 15] tpv create timeout INT ? (60)
 [API 15] tpv create capacity SIZE ? (None)
+[API 15] tpv create encryption-header-size INT ? (None)
+[API 15] tpv create is-encrypted ? (False)
 [API 15] tpv create tpv-config-cdv-id STRING ? (None)
 [API 15] tpv create tpv-config-tpv-extent-size-kb INT ? (None)
 [API 15] tpv create wait ? (False)
@@ -507,9 +509,29 @@
 [API 15] tpv delete timeout INT ? (60)
 [API 15] tpv delete wait ? (False)
 [API 15] tpv delete yes ? (False)
+[API 15] tpv add-passphrase
+[API 15] tpv add-passphrase current-passphrase STRING (None)
+[API 15] tpv add-passphrase name STRING ... (None)
+[API 15] tpv add-passphrase new-passphrase STRING (None)
+[API 15] tpv add-passphrase slot INT ? (None)
+[API 15] tpv delete-passphrase
+[API 15] tpv delete-passphrase current-passphrase STRING (None)
+[API 15] tpv delete-passphrase name STRING ... (None)
+[API 15] tpv delete-passphrase slot INT ? (None)
 [API 15] tpv extend
 [API 15] tpv extend name STRING ... (None)
 [API 15] tpv extend new-size SIZE (None)
+[API 15] tpv init-encryption
+[API 15] tpv init-encryption key-size 256|512 ? (None)
+[API 15] tpv init-encryption name STRING ... (None)
+[API 15] tpv init-encryption number-of-slots INT ? (None)
+[API 15] tpv init-encryption passphrase STRING (None)
+[API 15] tpv init-encryption slot INT ? (None)
+[API 15] tpv rotate-passphrase
+[API 15] tpv rotate-passphrase current-passphrase STRING (None)
+[API 15] tpv rotate-passphrase name STRING ... (None)
+[API 15] tpv rotate-passphrase new-passphrase STRING (None)
+[API 15] tpv rotate-passphrase slot INT ? (None)
 [API 15] tpv show
 [API 15] tpv show fields STRING ? (None)
 [API 15] tpv show limit INT ? (None)

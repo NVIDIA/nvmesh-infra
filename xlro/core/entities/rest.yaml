@@ -1323,6 +1323,8 @@
         - status
         - action
         - tpvConfig
+        - isEncrypted
+        - encryption
       ops:
         delete:
           confirm: |
@@ -1351,3 +1353,84 @@
           params:
             - capacity
             - tpvConfig
+            - isEncrypted
+            - encryption
+        # Encryption ops — mirror Volume.ops verbatim.  The REST layer shares
+        # /volumes/<op> between Volume and TPV; management branches on
+        # volumeClass inside volumeEncryption.js.
+        initEncryption:
+          help: Initialize keys for encrypted TPV
+          opts:
+            passphrase:
+              required: true
+            slot:
+              type: int
+            numberOfSlots:
+              type: int
+            keySize:
+              choices: [256, 512]
+          style: entities
+          payload: |
+            [{% for e in entities %}
+              {
+                '_id': '{{e.name}}', 'uuid': '{{e.uuid}}',
+                {% if passphrase %} 'passphrase': '{{passphrase}}',  {% endif %}
+                {% if slot or slot == 0 %} 'slot': {{slot}},  {% endif %}
+                {% if numberOfSlots %} 'numberOfSlots': {{numberOfSlots}},  {% endif %}
+                {% if key_size %} 'keySize': {{key_size}},  {% endif %}
+              },
+            {% endfor %}]
+        addPassphrase:
+          help: Add a passphrase for encrypted TPV
+          opts:
+            currentPassphrase:
+              required: true
+            newPassphrase:
+              required: true
+            slot:
+              type: int
+          style: entities
+          payload: |
+            [{% for e in entities %}
+              {
+                '_id': '{{e.name}}', 'uuid': '{{e.uuid}}',
+                'currentPassphrase': '{{current_passphrase}}',
+                'newPassphrase': '{{new_passphrase}}',
+                {% if slot or slot == 0 %} 'slot': {{slot}},  {% endif %}
+              }
+            {% endfor %}]
+        deletePassphrase:
+          help: Delete a passphrase for encrypted TPV
+          opts:
+            currentPassphrase:
+              required: true
+            slot:
+              type: int
+          style: entities
+          payload: |
+            [{% for e in entities %}
+              {
+                '_id': '{{e.name}}', 'uuid': '{{e.uuid}}',
+                'currentPassphrase': '{{current_passphrase}}',
+                {% if slot or slot == 0 %} 'slot': {{slot}},  {% endif %}
+              }
+            {% endfor %}]
+        rotatePassphrase:
+          help: Rotate a passphrase for encrypted TPV
+          opts:
+            currentPassphrase:
+              required: true
+            newPassphrase:
+              required: true
+            slot:
+              type: int
+          style: entities
+          payload: |
+            [{% for e in entities %}
+              {
+                '_id': '{{e.name}}', 'uuid': '{{e.uuid}}',
+                'currentPassphrase': '{{current_passphrase}}',
+                'newPassphrase': '{{new_passphrase}}',
+                {% if slot or slot == 0 %} 'slot': {{slot}},  {% endif %}
+              }
+            {% endfor %}]
