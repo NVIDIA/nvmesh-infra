@@ -39,8 +39,9 @@ class Cluster(SDKEntity):
         return ({}, [1]) if 'count' in routes else cls._makeRequest('get', mgr, ['getClusterStatus?skipLogs=true'])
 
     @staticmethod
-    def get_health_occurences_from_data(data: dict) -> List[str]:
-        return [f"{h.capitalize()}: {data[h]}" for h in Cluster.HEALTH_STATUSES]
+    def get_health_occurences_from_data(data: dict, buckets: Optional[List[str]] = None) -> List[str]:
+        keys = buckets if buckets is not None else Cluster.HEALTH_STATUSES
+        return [f"{k.replace('_', ' ').title()}: {data.get(k, 0)}" for k in keys]
 
     @property
     def targets_summary(self):
@@ -57,6 +58,28 @@ class Cluster(SDKEntity):
     @property
     def drives_summary(self):
         return Cluster.get_health_occurences_from_data(self.get_property('drives'))
+
+    def _fetch_volume_counters(self) -> dict:
+        """ Fetch CDV/TPV health buckets via /getVolumeCounters. Cached per instance. """
+        if getattr(self, '_volume_counters_cache', None) is None:
+            err, out = Cluster._makeRequest('get', self.mgmt, ['getVolumeCounters'])
+            if err:
+                self.logger.warning(f'getVolumeCounters failed: {err}')
+                self._volume_counters_cache = {}
+            else:
+                # _makeRequest wraps a single dict response into a list; unwrap.
+                self._volume_counters_cache = out[0] if isinstance(out, list) and out else (out or {})
+        return self._volume_counters_cache
+
+    @property
+    def cdvs_summary(self):
+        data = self._fetch_volume_counters().get('cdvCount') or {}
+        return Cluster.get_health_occurences_from_data(data, ['healthy', 'almost_full', 'alarm', 'critical'])
+
+    @property
+    def tpvs_summary(self):
+        data = self._fetch_volume_counters().get('tpvCount') or {}
+        return Cluster.get_health_occurences_from_data(data, ['healthy', 'alarm', 'critical', 'detached'])
 
     @property
     def orig_volume_segments_summary(self):

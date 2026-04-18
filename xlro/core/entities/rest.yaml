@@ -479,6 +479,8 @@
               - targets_summary
               - clients_summary
               - volumes_summary
+              - cdvs_summary
+              - tpvs_summary
               - drives_summary
               - volume_segments_summary
         GeneralSettings:

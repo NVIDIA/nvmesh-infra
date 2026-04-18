@@ -84,6 +84,7 @@
 0:Log:level
 0:Log:message
 0:Cluster:allocatedSpace
+0:Cluster:cdvs_summary
 0:Cluster:clients_summary
 0:Cluster:drives_summary
 0:Cluster:freeSpace
@@ -91,6 +92,7 @@
 0:Cluster:managementVersion
 0:Cluster:targets_summary
 0:Cluster:totalSpace
+0:Cluster:tpvs_summary
 0:Cluster:volume_segments_summary
 0:Cluster:volumes_summary
 0:GeneralSettings:daysBeforeLogEntryExpires
