@@ -973,6 +973,7 @@
 15:CDV:description
 15:CDV:health
 15:CDV:name
+15:CDV:runtimeStats
 15:CDV:status
 15:CDV:tpvCount
 15:CDVMgmt:action

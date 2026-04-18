@@ -1249,6 +1249,7 @@
         - capacity
         - tpvCount
         - cdvConfig
+        - runtimeStats
       ops:
         rebuild:
           help: Rebuild a CDV
