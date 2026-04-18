@@ -774,6 +774,19 @@
                   },
                 {% endfor %}
               ]}
+          preemptFromCdv:
+            help: Forcibly evict a client from a CDV (fences all of the client's TPVs on that CDV)
+            route: clients/{{entities[0].name}}/preemptFromCDV/{{cdv}}
+            style: one
+            opts:
+              cdv:
+                type: CDV
+                required: true
+              reason:
+                type: str
+                required: true
+                help: Audit-log reason (free-form)
+            payload: "{'reason': '{{reason}}'}"
       VPG:
         params: &v8_vpg_params
           - *v1_vpg_params
