@@ -422,7 +422,7 @@
 [API 15] cdv create
 [API 15] cdv create capacity SIZE ? (None)
 [API 15] cdv create cdv-config-allocator-size-gb INT ? (None)
-[API 15] cdv create cdv-config-cdv-extent-size-mb INT ? (None)
+[API 15] cdv create cdv-config-cdv-extent-size-mib INT ? (None)
 [API 15] cdv create cdv-config-max-tpvs INT ? (None)
 [API 15] cdv create cli-property STRING ? ... (None)
 [API 15] cdv create cli-template STRING ? (None)
