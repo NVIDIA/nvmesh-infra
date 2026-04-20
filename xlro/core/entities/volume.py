@@ -72,8 +72,8 @@ class EncryptionObj(SdkObject):
 
 class CDVConfig(SdkObject):
     """Configuration for a Capacity Data Volume."""
-    cdvExtentSizeMiB : int  # power-of-2 in range [64, 65536] MiB
-    allocatorSizeGiB : int  # size of the CDV_MGMT satellite volume in GiB; default 1
+    cdvExtentSizeMib : int  # power-of-2 in range [64, 65536] MiB
+    allocatorSizeGib : int  # size of the CDV_MGMT satellite volume in GiB; default 1
     maxTPVs         : int  # max number of TPVs allowed on this CDV; default 512
 
 class TPVConfig(SdkObject):
