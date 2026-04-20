@@ -81,7 +81,6 @@ class TPVConfig(SdkObject):
     # camelCase names must match what the management server expects
     cdvId            : str    # required; parent CDV name/_id
     tpvExtentSizeKB  : int    # power-of-2 in range [64, 65536] KB
-    cdvName          : str    # readonly; denormalized by the server
 
 @sdk_entity(sourcetypes=[SourceTypes.LOCAL, SourceTypes.MANAGEMENT, SourceTypes.PROC])
 class Chunk(SDKEntity):
