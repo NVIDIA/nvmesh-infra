@@ -1245,9 +1245,11 @@ class TPV(Volume):
 class CDVMgmt(Volume):
     """Allocator-satellite volume — a Volume with volumeClass='CDV_MGMT'.
 
-    Every CDV is created together with a fixed-size '<cdvName>-mgmt' satellite
-    volume that holds the allocator metadata (header + extent records).  The
-    satellite is managed automatically by the system:
+    Every CDV is created together with a '<cdvName>-mgmt' satellite volume
+    that holds the allocator metadata (header + extent records). The satellite
+    size is set by cdvConfig.allocatorSizeGib at CDV create time (default 1
+    GiB; raise for very large CDVs at small extent sizes) and is immutable
+    thereafter. The satellite is managed automatically by the system:
       * Created atomically with its parent CDV (management).
       * Attached EXCLUSIVE_READ_WRITE to the elected allocator TOMA via an
         internal Kafka handshake.
