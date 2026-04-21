@@ -77,10 +77,20 @@ class CDVConfig(SdkObject):
     maxTPVs         : int  # max number of TPVs allowed on this CDV; default 512
 
 class TPVConfig(SdkObject):
-    """Configuration for a Thin-Provisioned Volume."""
+    """Configuration for a Thin-Provisioned Volume.
+
+    Split-mode (TPV_MetadataCDV.md): specifying metaCdvId + metaTpvExtentSizeKB
+    places the TPV's L1/L2 mapping tree on a second CDV (typically mirror-backed
+    for small-write performance) while user data lives on the primary (often EC)
+    CDV. Omitting the meta fields selects single-CDV mode. metaVirtualSizeGB is
+    server-computed by management and read-only from the CLI's perspective.
+    """
     # camelCase names must match what the management server expects
-    cdvId            : str    # required; parent CDV name/_id
-    tpvExtentSizeKB  : int    # power-of-2 in range [64, 65536] KB
+    cdvId               : str    # required; parent (data) CDV name/_id
+    tpvExtentSizeKB     : int    # power-of-2 in range [64, 65536] KB
+    metaCdvId           : Optional[str] = None
+    metaTpvExtentSizeKB : Optional[int] = None
+    metaVirtualSizeGB   : Optional[int] = None  # server-owned; display only
 
 @sdk_entity(sourcetypes=[SourceTypes.LOCAL, SourceTypes.MANAGEMENT, SourceTypes.PROC])
 class Chunk(SDKEntity):

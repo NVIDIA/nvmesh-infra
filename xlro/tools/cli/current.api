@@ -502,6 +502,9 @@
 [API 15] tpv create encryption-header-size INT ? (None)
 [API 15] tpv create is-encrypted ? (False)
 [API 15] tpv create tpv-config-cdv-id STRING ? (None)
+[API 15] tpv create tpv-config-meta-cdv-id STRING ? (None)
+[API 15] tpv create tpv-config-meta-tpv-extent-size-kb INT ? (None)
+[API 15] tpv create tpv-config-meta-virtual-size-gb INT ? (None)
 [API 15] tpv create tpv-config-tpv-extent-size-kb INT ? (None)
 [API 15] tpv create wait ? (False)
 [API 15] tpv delete
