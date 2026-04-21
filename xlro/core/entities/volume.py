@@ -82,15 +82,21 @@ class TPVConfig(SdkObject):
     Split-mode (TPV_MetadataCDV.md): specifying metaCdvId + metaTpvExtentSizeKB
     places the TPV's L1/L2 mapping tree on a second CDV (typically mirror-backed
     for small-write performance) while user data lives on the primary (often EC)
-    CDV. Omitting the meta fields selects single-CDV mode. metaVirtualSizeGB is
-    server-computed by management and read-only from the CLI's perspective.
+    CDV. Omitting the meta fields selects single-CDV mode.
+
+    Note: metaVirtualSizeGB is intentionally NOT declared here. It is
+    server-computed by management on create/extend and returned inside the
+    tpvConfig sub-object on read; display rendering walks the raw response
+    dict so the field appears on `nvmesh tpv show` without needing an
+    SdkObject slot. Declaring it would make the auto-generator emit a
+    --tpv-config-meta-virtual-size-gb flag on `tpv create`, which would let
+    an admin override the server-owned value.
     """
     # camelCase names must match what the management server expects
     cdvId               : str    # required; parent (data) CDV name/_id
     tpvExtentSizeKB     : int    # power-of-2 in range [64, 65536] KB
     metaCdvId           : Optional[str] = None
     metaTpvExtentSizeKB : Optional[int] = None
-    metaVirtualSizeGB   : Optional[int] = None  # server-owned; display only
 
 @sdk_entity(sourcetypes=[SourceTypes.LOCAL, SourceTypes.MANAGEMENT, SourceTypes.PROC])
 class Chunk(SDKEntity):
