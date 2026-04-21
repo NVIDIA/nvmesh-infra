@@ -1318,6 +1318,7 @@
       display:
         - name
         - cdv
+        - metaCdv
         - description
         - health
         - status

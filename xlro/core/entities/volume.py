@@ -1240,6 +1240,10 @@ class TPV(Volume):
     def cdv(self):
         return self.tpvConfig.cdvId if self.tpvConfig else None
 
+    @property
+    def metaCdv(self):
+        return self.tpvConfig.metaCdvId if self.tpvConfig else None
+
 
 @sdk_entity(sourcetypes=[SourceTypes.LOCAL, SourceTypes.MANAGEMENT])
 class CDVMgmt(Volume):
