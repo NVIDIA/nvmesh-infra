@@ -344,3 +344,49 @@ class TPVGroup(RestGroup):
                     failure_msg(self.format_failure(r))
             return out if response else False
         return super().do_create(**kwargs)
+
+
+class TPVCLI(object):
+    """Inject extra top-level `tpv` subcommands for offline compaction
+    (TPV_Trimming.md Step 4).  The declarative 'compact' op in rest.yaml
+    already covers POST; --abort is handled here by routing to DELETE.
+    """
+
+    @staticmethod
+    @click.command(help='Show current compaction job state for a TPV')
+    @click.argument('tpv_name')
+    @click.pass_context
+    def compact_show(ctx, tpv_name):
+        obj = ctx.obj
+        err, out = obj.entity._makeGet(
+            obj.manager, ['thinProvisioning', 'tpv', tpv_name, 'compaction'])
+        if err:
+            failure_msg(f'compact show failed: {err}')
+            return
+        if not out:
+            echo('no compaction job')
+            return
+        # Render order puts the most operator-relevant fields first.
+        # 'percent' is computed by management from progress counters
+        # so the CLI doesn't replicate the math.
+        for k in ('state', 'percent', 'clientId', 'startedAt',
+                  'progress', 'progressUpdatedAt', 'lastError'):
+            if k in out:
+                v = out[k]
+                if k == 'percent':
+                    echo(f'percent:             {v}%')
+                else:
+                    echo(f'{k}: {v}')
+
+    @staticmethod
+    @click.command(help='Abort an in-flight compaction job')
+    @click.argument('tpv_name')
+    @click.pass_context
+    def compact_abort(ctx, tpv_name):
+        obj = ctx.obj
+        err, _out = obj.entity._makeDelete(
+            obj.manager, ['thinProvisioning', 'tpv', tpv_name, 'compaction'])
+        if err:
+            failure_msg(f'compact abort failed: {err}')
+            return
+        success_msg(f'compaction abort requested for {tpv_name}')

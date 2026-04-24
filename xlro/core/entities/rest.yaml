@@ -1346,6 +1346,28 @@
               required: true
               help: New virtual size (e.g. 16GiB, 20GB)
           payload: "{'tpvId': '{{entities[0].name}}', 'newSizeGB': {{new_size.ivalue / (1024**3)}}}"
+        compact:
+          help: Start (or abort with --abort) offline compaction on a detached TPV
+          route: tpv/compact
+          method: POST
+          style: one
+          opts:
+            client:
+              type: str
+              help: Run on this target node (hostname). Omit for random.
+            aggressiveness:
+              type: int
+              help: Max parallel slot relocations (default 4)
+            abort:
+              type: bool
+              help: Abort an in-flight compaction job on this TPV
+          payload: "{'tpvId': '{{entities[0].name}}', 'client': '{{client}}', 'aggressiveness': {{aggressiveness or 4}}, 'abort': {{ 'True' if abort else 'False' }}}"
+        compactShow:
+          help: Show current compaction state and progress for a TPV
+          route: tpv/compactShow
+          method: POST
+          style: one
+          payload: "{'tpvId': '{{entities[0].name}}'}"
         create:
           wait:
             prop_name: 'status'
