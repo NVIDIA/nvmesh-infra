@@ -97,6 +97,12 @@ class TPVConfig(SdkObject):
     tpvExtentSizeKB     : int    # power-of-2 in range [64, 65536] KB
     metaCdvId           : Optional[str] = None
     metaTpvExtentSizeKB : Optional[int] = None
+    # Online compaction knobs (TPV_Trimming.md Step 5, Phase D).  All three
+    # are mutable via `tpv update`.  None = inherit management/kernel
+    # defaults (enabled=True, armHighPct=30, armLowPct=15).
+    onlineCompactionEnabled    : Optional[bool] = None
+    onlineCompactionArmHighPct : Optional[int]  = None
+    onlineCompactionArmLowPct  : Optional[int]  = None
 
 @sdk_entity(sourcetypes=[SourceTypes.LOCAL, SourceTypes.MANAGEMENT, SourceTypes.PROC])
 class Chunk(SDKEntity):

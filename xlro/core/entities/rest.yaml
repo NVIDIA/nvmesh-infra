@@ -1312,9 +1312,16 @@
       dbkey: name
       rest2infra:
         <<: *volume_r2i
+      # params feeds the auto-generated `tpv update` flags.  tpvConfig is
+      # here (in addition to the create-only params: block below) so the
+      # Phase D online-compaction knobs (onlineCompactionEnabled /
+      # ArmHighPct / ArmLowPct) are mutable post-create.  Management
+      # ignores immutable tpvConfig fields (cdvId, tpvExtentSizeKB,
+      # metaCdvId, metaTpvExtentSizeKB, metaVirtualSizeGB) on update.
       params:
         - name
         - description
+        - tpvConfig
       display:
         - name
         - cdv

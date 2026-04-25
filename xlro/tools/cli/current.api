@@ -504,6 +504,9 @@
 [API 15] tpv create tpv-config-cdv-id STRING ? (None)
 [API 15] tpv create tpv-config-meta-cdv-id STRING ? (None)
 [API 15] tpv create tpv-config-meta-tpv-extent-size-kb INT ? (None)
+[API 15] tpv create tpv-config-online-compaction-arm-high-pct INT ? (None)
+[API 15] tpv create tpv-config-online-compaction-arm-low-pct INT ? (None)
+[API 15] tpv create tpv-config-online-compaction-enabled ? (None)
 [API 15] tpv create tpv-config-tpv-extent-size-kb INT ? (None)
 [API 15] tpv create wait ? (False)
 [API 15] tpv delete
@@ -545,6 +548,13 @@
 [API 15] tpv update cli-template STRING ? (None)
 [API 15] tpv update description STRING ? (None)
 [API 15] tpv update name STRING (None)
+[API 15] tpv update tpv-config-cdv-id STRING ? (None)
+[API 15] tpv update tpv-config-meta-cdv-id STRING ? (None)
+[API 15] tpv update tpv-config-meta-tpv-extent-size-kb INT ? (None)
+[API 15] tpv update tpv-config-online-compaction-arm-high-pct INT ? (None)
+[API 15] tpv update tpv-config-online-compaction-arm-low-pct INT ? (None)
+[API 15] tpv update tpv-config-online-compaction-enabled ? (None)
+[API 15] tpv update tpv-config-tpv-extent-size-kb INT ? (None)
 [API 15] tpv wait
 [API 15] tpv wait boolean ? (False)
 [API 15] tpv wait missing STRING ? (None)

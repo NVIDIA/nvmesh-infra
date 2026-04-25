@@ -326,12 +326,27 @@ class TPVGroup(RestGroup):
             keyprop = rest_ctx.rest_info.rest2infra.get(
                 rest_ctx.rest_info.dbkey, rest_ctx.rest_info.dbkey)
             names = prop_values.pop(keyprop, [])
-            # Only description is mutable on a TPV via this route.
-            allowed = {'description'}
-            payload = [
-                {'_id': name, **{k: v for k, v in prop_values.items() if k in allowed}}
-                for name in names
-            ]
+            # Mutable fields on a TPV: description (top-level) and the
+            # onlineCompaction* knobs nested under tpvConfig. Everything
+            # else (cdvId, tpvExtentSizeKB, meta*) is immutable post-create.
+            online_keys = {
+                'onlineCompactionEnabled',
+                'onlineCompactionArmHighPct',
+                'onlineCompactionArmLowPct',
+            }
+            tpv_cfg_in = prop_values.get('tpvConfig')
+            if tpv_cfg_in is None:
+                tpv_cfg_in = {}
+            elif hasattr(tpv_cfg_in, '_to_dict'):
+                tpv_cfg_in = tpv_cfg_in._to_dict()
+            tpv_cfg_out = {k: v for k, v in tpv_cfg_in.items()
+                           if k in online_keys and v is not None}
+            base = {}
+            if prop_values.get('description') is not None:
+                base['description'] = prop_values['description']
+            if tpv_cfg_out:
+                base['tpvConfig'] = tpv_cfg_out
+            payload = [{'_id': name, **base} for name in names]
             err, out = obj.entity._makePost(obj.manager, ['tpv', 'update'], payload)
             if err:
                 raise Exception(f'TPV update failed: {err}')
