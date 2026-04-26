@@ -1352,6 +1352,9 @@
               type: SIZE
               required: true
               help: New virtual size (e.g. 16GiB, 20GB)
+          # NOTE: management treats newSizeGB as GiB (binary), not decimal GB -
+          # see nvmesh-management/modules/volume.js:3598 and :4281. Do not
+          # "normalize" to 1000**3; doing so will silently extend to the wrong size.
           payload: "{'tpvId': '{{entities[0].name}}', 'newSizeGB': {{new_size.ivalue / (1024**3)}}}"
         compact:
           help: Start (or abort with --abort) offline compaction on a detached TPV
@@ -1378,7 +1381,7 @@
         create:
           wait:
             prop_name: 'status'
-            values: ['online', 'offline', 'degraded', 'unavailable']
+            values: ['online', 'offline', 'degraded']
             is_matching: true
           params:
             - capacity
