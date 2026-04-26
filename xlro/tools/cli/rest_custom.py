@@ -379,7 +379,7 @@ class TPVCLI(object):
             failure_msg(f'compact show failed: {err}')
             return
         if not out:
-            echo('no compaction job')
+            click.echo('no compaction job')
             return
         # Render order puts the most operator-relevant fields first.
         # 'percent' is computed by management from progress counters
@@ -389,9 +389,9 @@ class TPVCLI(object):
             if k in out:
                 v = out[k]
                 if k == 'percent':
-                    echo(f'percent:             {v}%')
+                    click.echo(f'percent:             {v}%')
                 else:
-                    echo(f'{k}: {v}')
+                    click.echo(f'{k}: {v}')
 
     @staticmethod
     @click.command(help='Abort an in-flight compaction job')
