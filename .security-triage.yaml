@@ -1,0 +1,22 @@
+version: "1.0"
+project: "nvmesh-infra"
+last_updated: "2026-08-02T00:00:00Z"
+
+repository_exposure_classification:
+  visibility: "Public"
+  basis: "project is open-source and published for public consumption (https://github.com/NVIDIA/nvmesh-infra); document written to public-safe detail (internal hostnames, IPs, ticket IDs, and internal tooling URLs omitted)"
+  confirmed_by: "Ido Yehiam"
+  date: "2026-08-02"
+
+service_exposure_classification:
+  tier: "External / Regulated"
+  confidence: "high"
+  basis: "shipped as a released package / PyInstaller binary (netinfo.spec) running on customer NVMesh cluster nodes as part of a commercial product; handles management credentials, SSH keys/passwords, and sudo operations"
+  confirmed_by: "Ido Yehiam"
+  date: "2026-08-02"
+
+false_positives: []
+
+accepted_risks: []
+
+suppressed_cves: []
