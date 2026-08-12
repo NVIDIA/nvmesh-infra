@@ -700,12 +700,15 @@ class PidMonitor(CmdMonitor):
     PID_PATTERN = r'^PID=(?P<{}>\d+)'.format(PID_PROP)
     BOOT_PROP = 'BOOT_TIME'
     BOOT_PATTERN = r'(?P<{}>.* system boot .*\d)'.format(BOOT_PROP)
+    # who -b reads utmp, which is empty in Docker containers (exits 0, no output).
+    # /proc/stat btime is always populated on Linux, including inside containers.
+    BOOT_CMD = r"""awk '/^btime/{print "         system boot " $2}' /proc/stat"""
 
     def __init__(self, cmd, *args, **kwargs):
         for flag in ('term_sig', 'term_wait', 'kill_sig', 'kill_wait', 'stop_targets'):
             setattr(self, flag, kwargs.pop(flag, getattr(infra_conf.root.pid_stop, flag)))
         if 'PID=$$' not in cmd:
-            cmd = 'who -b && echo PID=$$ && exec ' + cmd
+            cmd = self.BOOT_CMD + ' && echo PID=$$ && exec ' + cmd
         super(PidMonitor, self).__init__(cmd, *args, **kwargs)
         self.pid_handler = PatternHandler(self.PID_PATTERN)
         self.boot_time_handler = PatternHandler(self.BOOT_PATTERN)
@@ -738,7 +741,7 @@ class PidMonitor(CmdMonitor):
         if self.pid:
             try:
                 if self.boot_stamp:
-                    if host_exec('who -b')[0].strip() != self.boot_stamp:
+                    if host_exec(self.BOOT_CMD)[0].strip() != self.boot_stamp:
                         self.logger.info(f"boot time differs - not killing command {self.pid}")
                     else:
                         # Get all descendants of pid.

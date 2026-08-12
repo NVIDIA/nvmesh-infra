@@ -18,7 +18,12 @@ class BlockDevice(DiagModule):
     _MAX_PARSED_GPT_PARTITIONS = 3
 
     def discover(self):
-        # Extract device info from Target entity
+        self.diag_info.devices = []
+
+        out, _, _ = self.run_cmd("systemctl is-active nvmeshtarget.service", is_sudo=False, print_err=False)
+        if out.strip() != "active":
+            self.skip("NVMesh target service is not running. Skipping block device check.")
+
         target = Target.instance(name=self.nodename)
 
         self.diag_info.devices = [d for d in target.drives if getattr(d, 'status', '') == DriveStatus.OK] # We check only OK devices

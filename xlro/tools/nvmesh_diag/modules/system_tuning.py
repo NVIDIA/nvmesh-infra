@@ -42,9 +42,13 @@ class SystemTuning(DiagModule):
         if irq_service.status() == Service.STATUS.UP:
             self.add_message("The IRQ balancer is running - OK", MsgLvl.SUCCESS)
         else:
-            self.add_message("The IRQ Balancer is not running. This might severely impact the system performance.", MsgLvl.WARNING)
+            mlnx_out, _, mlnx_code = self.run_cmd("systemctl is-active mlnx_affinity || service mlnx_affinity status", is_sudo=False, print_err=False)
+            if mlnx_code == 0 or 'running' in mlnx_out.lower():
+                self.add_message("The IRQ Balancer is not running, but mlnx_affinity is active - OK", MsgLvl.SUCCESS)
+            else:
+                self.add_message("The IRQ Balancer is not running. This might severely impact the system performance.", MsgLvl.WARNING)
 
-            def enable_start_irq():
-                irq_service.enable()
-                irq_service.start()
-            self.suggest_fix("Do you want to enable and start the IRQ Balance service now?", False, enable_start_irq)
+                def enable_start_irq():
+                    irq_service.enable()
+                    irq_service.start()
+                self.suggest_fix("Do you want to enable and start the IRQ Balance service now?", False, enable_start_irq)

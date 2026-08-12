@@ -1,8 +1,0 @@
-# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: Apache-2.0
-
-phases: ["MGMT", "UM_MINI"]
-suite: "gitlab-ci-ec"
-build-with:
-  # Temporary, until nvmesh-master references UM properly
-  nvmesh: "master"

@@ -34,6 +34,7 @@ from xlro.core.util.consts import Deprecate
 from xlro.core.util.general_utils import host_name, tolerant_func, host_aliases
 from xlro.core.util.ssh import Connection, remote_python_command, temp_dir
 from xlro.core.util.common import get_path
+from xlro.core.util.config_storage import config_storage
 from os import path
 
 MODPROBE = "modprobe"
@@ -175,8 +176,7 @@ class Target(SDKEntity):
     @tolerant_func(delay=10, log_level='warning')
     def remove_drive(self, drive):
         # PCI slot power off is a one way ticket in QEMU. Do it via devices/remove instead
-        model = drive.get_property('model', source=SourceTypes.MANAGEMENT)
-        if 'QEMU' in model.upper():
+        if config_storage.scenario.is_virtual_machine:
             self.remove_pci(drive)
         else:
             cmd = 'sudo sh -c "echo 0 > /sys/bus/pci/slots/{}/power"'.format(drive.pci_slot)
@@ -187,8 +187,7 @@ class Target(SDKEntity):
 
     @tolerant_func(delay=10, log_level='warning')
     def return_drive(self, drive):
-        model = drive.get_property('model', source=SourceTypes.MANAGEMENT)
-        if 'QEMU' in model.upper():
+        if config_storage.scenario.is_virtual_machine:
             self.rescan_pci()
         else:
             cmd = 'sudo sh -c "echo 1 > /sys/bus/pci/slots/{}/power"'.format(drive.pci_slot)

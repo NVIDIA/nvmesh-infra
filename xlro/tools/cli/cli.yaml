@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 aliases:
   options:
     # Use lower-case dashed-snake, i.e., real option name
@@ -21,6 +24,7 @@ aliases:
   values:
     raid-level:
       ec: Erasure Coding
+      sec: Striped Erasure Coding
       lvm: Concatenated
       "0": Striped RAID-0
       "1": Mirrored RAID-1

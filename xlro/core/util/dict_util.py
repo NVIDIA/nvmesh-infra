@@ -6,7 +6,7 @@ from builtins import zip
 from builtins import str
 from builtins import range
 from builtins import object
-import collections
+import collections.abc
 import logging
 from typing import Any,Dict,Hashable,Optional,Sequence,Union
 from functools import reduce
@@ -75,7 +75,7 @@ class DictUtils(object):
             4. result {'nvme182.acme.com':{'nvmeshclient': {DictUtils.IGN: 1}}} (step 2 remains in ignore dict)
         """
 
-        if isinstance(ignore_spec, collections.Hashable):
+        if isinstance(ignore_spec, collections.abc.Hashable):
             return cls._update_ignore_key(ignore, ignore_spec, is_add)
 
         try:

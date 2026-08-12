@@ -16,7 +16,8 @@ import json
 import tempfile
 import os.path as path
 import inspect
-from collections import defaultdict, Mapping, Sequence
+from collections import defaultdict
+from collections.abc import Mapping, Sequence
 import xlro.core.entities
 
 

@@ -79,11 +79,17 @@ volume_defs:
     raid-1: &raid-1
       RAIDLevel: Mirrored RAID-1
       numberOfMirrors: 1
-    raid-10:
+    raid-1-2M:
+      <<: *raid-1
+      numberOfMirrors: 2
+    raid-10: &raid-10
       RAIDLevel: Striped & Mirrored RAID-10
       numberOfMirrors: 1
       stripeSize: 32
       stripeWidth: 2
+    raid-10-2M:
+      <<: *raid-10
+      numberOfMirrors: 2
     raid-0:
       RAIDLevel: Striped RAID-0
       stripeWidth: 2
@@ -101,24 +107,40 @@ volume_defs:
       <<: *ec
       protectionLevel:  Minimal Separation
       description: 8+2 with minimal disk separation
-    ec-6D-2P:
+    ec-6D-2P: &ec-6D-2P
       <<: *ec
       dataBlocks: 6
       parityBlocks: 2
       description: 6+2 with no disk separation
       protectionLevel:  Ignore Separation
-    ec-10D-2P:
+    ec-10D-2P: &ec-10D-2P
       <<: *ec
       dataBlocks: 10
       parityBlocks: 2
       description: 10+2 with no disk separation
       protectionLevel:  Ignore Separation
-    ec-4D-2P:
+    ec-4D-2P: &ec-4D-2P
       <<: *ec
       dataBlocks: 4
       parityBlocks: 2
       description: 4+2 with no disk separation
       protectionLevel:  Ignore Separation
+    sec:
+      <<: *ec
+      RAIDLevel: Striped Erasure Coding
+      stripeWidth: 2
+    sec-6D-2P:
+      <<: *ec-6D-2P
+      RAIDLevel: Striped Erasure Coding
+      stripeWidth: 2
+    sec-10D-2P:
+      <<: *ec-10D-2P
+      RAIDLevel: Striped Erasure Coding
+      stripeWidth: 2
+    sec-4D-2P:
+      <<: *ec-4D-2P
+      RAIDLevel: Striped Erasure Coding
+      stripeWidth: 2
     wcv: &wcv
       <<: *raid-1
       capacity: 20G
@@ -238,10 +260,10 @@ monitors:
           __format: 'Toma RAFT comms limit ({limit}s) exceeded! Peer={peer}, delay={delay}.'
 
   kernel-traces-monitor:
-    class: xlro.core.util.traces_monitor.KernelTracesStatsMonitor
+    class: xlro.infra.util.traces_monitor.KernelTracesStatsMonitor
 
   toma-traces-monitor:
-    class: xlro.core.util.traces_monitor.TomaTracesStatsMonitor
+    class: xlro.infra.util.traces_monitor.TomaTracesStatsMonitor
     hosts: [Targets]
 
   counters-watcher:
@@ -249,11 +271,11 @@ monitors:
       - n_err_nrch_pcpu_lookup_failed
 
   os-disk-usage-watcher:
-    class: xlro.core.util.watchers.OSDiskUsageWatcher
+    class: xlro.infra.util.watchers.OSDiskUsageWatcher
     disk_use_threshold: 90  # watcher will warn if disk use % is above this threshold
 
   nodejs-memory-watcher:
-    class: xlro.core.util.watchers.NodeJSMemoryWatcher
+    class: xlro.infra.util.watchers.NodeJSMemoryWatcher
     hosts: [managements]
 
   tracer-lostbuf-watcher:

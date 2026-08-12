@@ -1,9 +1,0 @@
-version = "1.0.0"
-
-[[oss.excluded.directories]]
-paths = [
-    'xlro/infra/bin/cpio_2.13+dfsg-2_x86_64.deb',
-    'xlro/infra/bin/cpio_2.13+dfsg-2_aarch64.deb',
-    'poetry/slash',
-]
-comment = 'Not part of runtime'

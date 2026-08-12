@@ -54,6 +54,7 @@ def jsonify(obj, **kwargs):
     deep = kwargs.pop('deep', False)
     kwargs.setdefault('cls', BriefEntityEncoder if not deep else DeepEntityEncoder)
     kwargs.setdefault('indent', 2)
+    kwargs.setdefault('sort_keys', True)
     return json.dumps(obj, **kwargs)
 
 def jprint(obj, **kwargs):

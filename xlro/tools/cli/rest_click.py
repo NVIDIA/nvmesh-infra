@@ -25,7 +25,7 @@ from humanfriendly.tables import format_smart_table, format_pretty_table, format
 import xlro.core.entities as entities
 from xlro.core.entities import BaseEntity, SDKEntity, Manager, SourceTypes, HostPort, User, Client
 from xlro.core.entities.base import PropertySpec, SourceTypes, Property, LoaderStatus
-from xlro.core.entities.sdk_base import SdkObject, SdkException, MongoComparison, MongoObj, RE, sdk_entity, RestException
+from xlro.core.entities.sdk_base import SdkObject, SdkException, MongoComparison, MongoObj, RE, sdk_entity, RestException, RequestException
 from xlro.core.sdk.Utils import Utils
 from xlro.core.sdk.ConnectionManager import Connection as RESTConnection
 from xlro.core.entities.rest_info import RestVersionManager, RestVersionInfo, RestEntityInfo
@@ -896,6 +896,13 @@ class RestGroup(click.Group):
                 response = content
             except:
                 pass
+        elif isinstance(response, RequestException) and response.args and isinstance(response.args[0], dict):
+            try:
+                content = json.loads(response.args[0].get('content', {}))
+                if isinstance(content, dict):
+                    response = content
+            except:
+                pass
 
         if isinstance(response, SdkException) and isinstance(response.args[0], dict):
             response = response.args[0]
@@ -1275,7 +1282,7 @@ class RestGroup(click.Group):
         keys = prop_values.pop(keyprop, ['singleton'])
         bulk_method = getattr(obj.entity, 'bulk_' + method)
         _logger.debug(f'{method} keys: [#{len(keys)}] {keys[:3]}...')
-        entities = [obj.entity.from_dict(d) for d in ({**prop_values, **{keyprop: k}} for k in keys)]
+        entities = [obj.entity.from_dict(d, clear=method == 'create') for d in ({**prop_values, **{keyprop: k}} for k in keys)]
         response = entities
         for ent, result in zip(entities, bulk_method(entities)):
             prefix = f'[{ent.rest_id}] ' if len(entities) > 1 else ''

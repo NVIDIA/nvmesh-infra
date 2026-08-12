@@ -196,6 +196,10 @@ class ManagementGroup(RestGroup):
                 ManagementGroup.logger.debug(f'status.get_info() hostname: {hostname} -> epname: {epname}')
                 # Need to copy user/auth from existing connection
                 conn = mgr.connect(user, **auth)
+                connected_host = urlparse(conn.managementServers[conn.currentMgmtIndex]).hostname
+                if host_name(connected_host) != host_name(hostname):
+                    ManagementGroup.logger.info(f'status.get_info() Connected to {connected_host} instead of {hostname}!')
+                    return { 'endpoint': epname, 'error': f'Connected to {connected_host} instead of {hostname}!' }
                 # conn = mgr.connection
                 servers_before = conn.managementServers[:]
                 index_before = conn.currentMgmtIndex

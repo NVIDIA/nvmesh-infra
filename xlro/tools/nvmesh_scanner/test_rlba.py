@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import slash
-
 from xlro.core.entities import Volume
 from xlro.core.util.block_objects import PSlice
 from xlro.core.util.di_timeline.addresses_calc import get_vlba_tree

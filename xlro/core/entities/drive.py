@@ -440,9 +440,13 @@ class Drive(SDKEntity):
         return cls.do_operation(drives[0].mgmt, 'format', [d.name for d in drives], formatType=format_type)
 
     @classmethod
+    def reinstate_drives(cls, drives: List['Drive']) -> List[dict]:
+        return cls.do_operation(drives[0].mgmt, 'reinstate', drives)
+
+    @classmethod
     def _do_operation(cls: Type[RE], mgmt: 'Manager', op: str, entities: Optional[Sequence[Union[str, dict, RE]]] = None, timeout=None, **kwargs) -> List[Dict]:
-        ''' On "format", we reset the base_uuid '''
-        if op == 'format':
+        ''' On "format" and "reinstate", we reset the base_uuid '''
+        if op in ['format', 'reinstate']:
             entities = cls.get_objs(entities, mgmt)
             for e in entities:
                 e.base_uuid = None

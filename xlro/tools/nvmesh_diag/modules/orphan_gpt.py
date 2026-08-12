@@ -13,11 +13,9 @@ class OrphanGPT(DiagModule):
         Send signal 10 (SIGUSR1) to TOMA process to trigger stats dump,
         then locate the most recent toma_20* file.
         """
-        # Initialize with safe defaults before any run_cmd calls that might skip/raise
         self.diag_info.toma_running = False
         self.diag_info.stat_file = None
 
-        # Check if TOMA service is running (doesn't require root)
         cmd = "systemctl is-active nvmeshtoma.service || echo inactive"
         status, _, _ = self.run_cmd(cmd, is_sudo=False)
         if status.strip() != "active":
@@ -25,16 +23,16 @@ class OrphanGPT(DiagModule):
 
         self.diag_info.toma_running = True
 
-        # Send signal 10 (SIGUSR1) to TOMA process to trigger stats file generation
-        target = Target.instance(name=self.nodename)
-        target.services['toma'].kill(signal=10)
+        try:
+            target = Target.instance(name=self.nodename)
+            target.services['toma'].kill(signal=10)
+            self.run_cmd("sleep 1", is_sudo=False, print_err=False)
+        except Exception as e:
+            self.add_message(f"Failed to signal TOMA process: {e}", MsgLvl.WARNING)
+            return
 
-        # Wait briefly for the stats file to be written
-        self.run_cmd("sleep 1", is_sudo=False, print_err=False)
-
-        # Find the most recent toma_20* file
         find_stat_file_cmd = "ls -tr /var/log/nvmesh/toma_20* 2>/dev/null | tail -1"
-        stat_file, _, code = self.run_cmd(find_stat_file_cmd, print_err=False)
+        stat_file, _, code = self.run_cmd(find_stat_file_cmd, is_sudo=False, print_err=False)
         self.diag_info.stat_file = stat_file.strip() if code == 0 and stat_file.strip() else None
 
     def validate(self):
@@ -50,9 +48,8 @@ class OrphanGPT(DiagModule):
             self.add_message("No TOMA stats file (toma_20*) found in /var/log/nvmesh/", MsgLvl.WARNING)
             return
 
-        # Count bad segments: lines matching '- seg' with 'vol=???'
         count_cmd = f"grep -E '\\- seg' {self.diag_info.stat_file} | grep 'vol=???' | wc -l"
-        count_out, _, code = self.run_cmd(count_cmd, print_err=False)
+        count_out, _, code = self.run_cmd(count_cmd, is_sudo=False, print_err=False)
 
         if code != 0:
             self.add_message(f"Failed to analyze stats file: {self.diag_info.stat_file}", MsgLvl.ERROR)
@@ -68,4 +65,3 @@ class OrphanGPT(DiagModule):
             self.add_message(f"No orphan GPT entries found (stats file: {self.diag_info.stat_file})", MsgLvl.SUCCESS)
         else:
             self.add_message(f"Has {n_bad_segs} corrupted entries (orphan GPT) in {self.diag_info.stat_file}", MsgLvl.ERROR)
-

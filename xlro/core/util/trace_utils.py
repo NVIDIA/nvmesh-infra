@@ -163,7 +163,7 @@ class PagerUtils(object):
     @classmethod
     def construct_pager_cmd(cls, logs_path: str = LOGS_PATH, pager_path: str = PAGER_PATH, filter_query: Optional[str] = None, time_query: Optional[str] = None,
                             channels: Optional[Iterable[str]] = None) -> str:
-        cmd_list = ["cd {} ".format(logs_path), "&& ", "python ", pager_path, "--mode msg-stream-json",
+        cmd_list = ["cd {} ".format(logs_path), "&& ", "python3 ", pager_path, "--mode msg-stream-json",
                     "--silent"]
         # calculating the additional args and queries. default values request for all LONG channel traces as txt
         channel_arg = "-l {}".format(" ".join(channels)) if channels else ""

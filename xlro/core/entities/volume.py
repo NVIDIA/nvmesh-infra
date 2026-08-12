@@ -167,6 +167,7 @@ class PRaid(SDKEntity):
         CONCATENATED = 'Concatenated'
         JBOD = CONCATENATED
         EC = ERASURE_CODING
+        SEC = 'Striped Erasure Coding'
         ELECT = 'ELECT'
 
     @property
@@ -705,7 +706,7 @@ class Volume(SDKEntity):
                 if source_type == SourceTypes.MANAGEMENT and raid_level:
                     if raid_level in ('Concatenated', 'Striped RAID-0'):
                         disks_count_dict.update({'parityDisks': 0, 'dataDisks': 1})
-                    if raid_level == 'Erasure Coding':
+                    if raid_level in ('Erasure Coding', 'Striped Erasure Coding'):
                         disks_count_dict = {'parityDisks': propmap['parityBlocks'], 'dataDisks': propmap['dataBlocks']}
 
                 for cdict in chunks:
@@ -724,7 +725,7 @@ class Volume(SDKEntity):
         if 'RAIDlevel' in propmap:
             # dataBlocks and parityBlocks were set as a side-effect of chunks above, which is no longer present by default
             raid_level = propmap.get('RAIDlevel')
-            if source_type == SourceTypes.MANAGEMENT and raid_level and raid_level != 'Erasure Coding':
+            if source_type == SourceTypes.MANAGEMENT and raid_level and raid_level not in ('Erasure Coding', 'Striped Erasure Coding'):
                 propmap.setdefault('dataBlocks', 1)
                 propmap.setdefault('parityBlocks', propmap.get('numberOfMirrors', 1) if 'Mirror' in raid_level else 0)
 

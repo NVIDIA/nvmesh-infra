@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+
 from http.cookiejar import MozillaCookieJar
 
 from future import standard_library
@@ -258,11 +259,16 @@ class Connection(object):
                 self.logger.debug(f'IS-ALIVE: {self.managementServer} #{index} R-{currentRotation + 1} of {self.maxManagementsRotations} OK? {(not bool(err))}')
                 return not err
             except (ManagementTimeout, ManagementConnectError) as ex:
-                if 'SSLError' in repr(ex):
-                    self.logger.info(f'SSLError! Switching from https to http')
-                    self.managementServers = [s.replace('https', 'http') for s in self.managementServers]
-                    self.managementServer = self.managementServer.replace('https', 'http')
-                    continue
+                if 'CERTIFICATE_VERIFY_FAILED' in repr(ex):
+                    self.logger.info(f'SSL certificate verification failed for {self.managementServer}. Trying next management.')
+                elif 'SSLError' in repr(ex):
+                    if self.auth.get('use_tls'):
+                        self.logger.info(f'SSLError for {self.managementServer} but TLS is required. Trying next management.')
+                    else:
+                        self.logger.info(f'SSLError! Switching from https to http')
+                        self.managementServers = [s.replace('https', 'http') for s in self.managementServers]
+                        self.managementServer = self.managementServer.replace('https', 'http')
+                        continue
                 self.getNextMgmtIndex()
                 index += 1
                 currentRotation += 1 if index % len(self.managementServers) == 0 else 0

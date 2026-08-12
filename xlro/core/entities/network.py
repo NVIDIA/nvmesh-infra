@@ -16,6 +16,7 @@ from xlro.core.entities.base import entity, prop_loader, PropertySpec, SourceTyp
 from xlro.core.entities.sdk_base import SdkException
 from xlro.core.util.general_utils import wait_for_it, IDAdapter, WaitResult, host_name
 from xlro.core.util.ssh import Connection
+from xlro.core.util.config_storage import config_storage
 from abc import ABCMeta, abstractmethod
 from xlro.core.util.tree import toJson
 from xlro.core.sdk.Utils import MongoObj
@@ -79,14 +80,20 @@ class SwitchPort(BasePort):
         return self.switch.snapshot(self.name)
 
     def connect(self):
-        if self.hostport.net_state in BasePort.STATUS_UP and self.net_state in BasePort.STATUS_DOWN:
-            raise Exception('Cached mapping to switchport {} {} is incorrect.'.format(self.switch.name, self.name))
+        try:
+            if self.hostport.net_state in BasePort.STATUS_UP and self.net_state in BasePort.STATUS_DOWN:
+                raise Exception('Cached mapping to switchport {} {} is incorrect.'.format(self.switch.name, self.name))
+        except AttributeError:
+            pass
         self.logger.debug('Connecting switchport {}.'.format(self.to_dict()))
         return self.switch.connect_switchport(self.name)
 
     def disconnect(self):
-        if self.hostport.net_state in BasePort.STATUS_DOWN and self.net_state in BasePort.STATUS_UP:
-            raise Exception('Cached mapping to switchport {} {} is incorrect.'.format(self.switch.name, self.name))
+        try:
+            if self.hostport.net_state in BasePort.STATUS_DOWN and self.net_state in BasePort.STATUS_UP:
+                raise Exception('Cached mapping to switchport {} {} is incorrect.'.format(self.switch.name, self.name))
+        except AttributeError:
+            pass
         self.logger.debug('Disconnecting switchport {}.'.format(self.to_dict()))
         return self.switch.disconnect_switchport(self.name)
 
@@ -120,9 +127,30 @@ class HostPort(BasePort): # Should be ABCMeta?
         return self.nic.host
 
     @prop_loader(SourceTypes.PROC, ['if_name', 'net_state'])
-    def _load_ibdev2netdev(self):
-        ibdev = self.host.ibdev2netdev()[self.nic.name][self.num]
-        return {'if_name': ibdev['if_name'], 'net_state': ibdev['net_state']}
+    def _load_netdev_state(self):
+        try:
+            ibdev = self.host.ibdev2netdev()[self.nic.name][self.num]
+            return {'if_name': ibdev['if_name'], 'net_state': ibdev['net_state']}
+        except (KeyError, IndexError, OSError) as e:
+            self.logger.debug('ibdev2netdev failed for {}/{}, falling back to sysfs: {}'.format(
+                self.nic.name, self.num, e))
+        # Fallback when ibdev2netdev is not installed: use sysfs to map RDMA device to net interface
+        out, _, code = self.host.connection.execute(
+            'ls /sys/class/infiniband/{}/device/net/'.format(self.nic.name))
+        if code or not out.strip():
+            raise Exception('Cannot find net device for {} via sysfs'.format(self.nic.name))
+        for if_name in out.strip().split():
+            port_out, _, port_rc = self.host.connection.execute(
+                'cat /sys/class/net/{}/dev_port'.format(if_name))
+            if port_rc:
+                continue
+            if int(port_out.strip()) == int(self.num) - 1:
+                ip_out, stderr, rc = self.host.connection.execute('ip link show {}'.format(if_name))
+                if rc:
+                    raise Exception('Cannot get link state for {}: {}'.format(if_name, stderr))
+                net_state = 'Up' if 'state UP' in ip_out else 'Down'
+                return {'if_name': if_name, 'net_state': net_state}
+        raise Exception('Cannot find net device for {}/{} via sysfs'.format(self.nic.name, self.num))
 
     @prop_loader(SourceTypes.PROC, ['switchport'])
     def build_switchport(self):
@@ -598,6 +626,14 @@ class Node(Host):
         # if this is a vlan interface we remove the vlan part
         name = name.partition('.')[0]
 
+        if not name:
+            raise Exception('Skipping port with empty interface name on {}'.format(self.name))
+        if 'mgmt' in name:
+            raise Exception('Skipping management interface {}'.format(name))
+
+        if config_storage.scenario.is_virtual_machine and re.match(r'rnic\d', name):
+            return {'type': BaseSwitch.LOCAL, 'name': self.name}, name
+
         if self.is_lldpd is None:
             _, _, code = self.connection.execute("sudo which lldpd")
             self.is_lldpd = False if code else True
@@ -606,29 +642,64 @@ class Node(Host):
 
         self.services['lldpd'].start()
 
+        # Get local interface MAC to identify the matching LLDP neighbor entry.
+        # lldpctl may return multiple entries for the same interface name; the one
+        # where port.id.value equals our MAC is the direct peer.
+        ip_out, _, code = self.connection.execute('ip -j link show dev {}'.format(name))
+        if code:
+            raise Exception('Cannot get MAC for interface {} on {}'.format(name, self.name))
+        try:
+            parsed = json.loads(ip_out)
+            if not parsed or 'address' not in parsed[0]:
+                raise KeyError('address')
+            local_mac = parsed[0]['address']
+        except (json.JSONDecodeError, IndexError, KeyError) as e:
+            raise Exception('Cannot parse MAC for interface {} on {}: {} (output: {!r})'.format(
+                name, self.name, e, ip_out)) from e
+
         count = 0
         while count < retries:
-            result = self._err2exc('sudo {} {}'.format(self.cache_cmd_path('lldpctl'), name))
-            rdict = toJson(result, ' ', '[\r\n]+', ':  ', patternsToIgnore=['--+'])
-            sdict = {}
-
+            result = self._err2exc('sudo {} -f json {}'.format(self.cache_cmd_path('lldpctl'), name))
             try:
-                chassis = rdict['Interface']['Chassis']
-                sdict['name'] = host_name(chassis.get('MgmtIP', chassis.get('SysName')))
-                sdict['type'] = self.parse_switch_type(rdict)
-                unparsed_spname = rdict['Interface']['Port']['PortID']
-                match1 = re.search('ifname (?P<spname>.+)', unparsed_spname)
-                if not match1:
+                lldp_data = json.loads(result)
+                interfaces = lldp_data.get('lldp', lldp_data).get('interface', [])
+                # Normalize: some lldpd versions emit interface as a plain dict
+                # {name: info} rather than a list of single-key dicts [{name: info}]
+                if isinstance(interfaces, dict):
+                    interfaces = [{k: v} for k, v in interfaces.items()]
+
+                for iface_entry in interfaces:
+                    iface = iface_entry.get(name, {})
+                    port_id = iface.get('port', {}).get('id', {})
+                    if port_id.get('type') == 'mac' and port_id.get('value', '') != local_mac:
+                        continue
+
+                    chassis_dict = iface.get('chassis', {})
+                    chassis_name, chassis_info = next(iter(chassis_dict.items()))
+
+                    mgmt_ips = chassis_info.get('mgmt-ip', [])
+                    if isinstance(mgmt_ips, str):
+                        mgmt_ips = [mgmt_ips]
+                    sdict = {
+                        'name': host_name(mgmt_ips[0] if mgmt_ips else chassis_name),
+                        'type': self.parse_switch_type({'Interface': {'Chassis': {
+                            'SysName': chassis_name,
+                            'SysDescr': chassis_info.get('descr', ''),
+                        }}}),
+                    }
                     # virbr has mac instead of ifname in PortID. PortDescr is ifname
-                    unparsed_spname = rdict['Interface']['Port']['PortDescr']
-                    match1 = re.search('(?P<spname>.+)', unparsed_spname)
-                    if not match1:
-                        raise Exception('Unable to parse switchport name from {}.'.format(unparsed_spname))
-                spname = match1.group('spname') if match1 else unparsed_spname
-                return sdict, spname
-            except KeyError:
-                count += 1
-                time.sleep(wait)
+                    if port_id.get('type') != 'mac':
+                        spname = port_id.get('value', '')
+                    else:
+                        spname = iface.get('port', {}).get('descr', '')
+                    if not spname:
+                        raise Exception('Unable to parse switchport name for {}'.format(name))
+                    return sdict, spname
+
+            except (ValueError, StopIteration):
+                pass
+            count += 1
+            time.sleep(wait)
 
         raise Exception('Unable to parse lldpctl, last output: {}'.format(result))
 
@@ -751,6 +822,7 @@ class BaseSwitch(Host): # Should be ABCMeta?
     DELL = 'DellSwitch'
     CISCO = 'CiscoSwitch'
     VIRTUAL = 'VirtualSwitch'
+    LOCAL = 'LocalSwitch'
     UNKNOWN = 'UnknownSwitch'
 
     # Must be overridden in concrete class
@@ -831,11 +903,11 @@ class MellanoxSwitch(BaseSwitch):
     def load_switchport_net_state(self, spname, channel=None):
         channel, result = self.snapshot(spname, channel=channel)
         self.logger.debug('load_switchport_net_state returned: ' + result)
-        rdict = toJson(result, ' ', '\r\n', ':', startPattern='(Eth|IB)[0-9]+/[0-9]', stopPattern='Rx')
+        rdict = toJson(result, ' \t', '\r\n', ':', startPattern='(Eth|IB)[0-9]+/[0-9]', stopPattern='Rx')
         try:
             return rdict[spname]['Operational state']
         except KeyError:
-            return rdict['IB1/{} state'.format(spname)]['\tLogical port state']
+            return rdict['IB1/{} state'.format(spname)]['Logical port state']
 
 
 @entity(sourcetypes=[SourceTypes.PROC])
@@ -935,6 +1007,31 @@ class VirtualSwitch(BaseSwitch):
         # color codes, they will be captured. Substring match will be
         # failing on such output. Work that around by suppressing
         # color output in ip with -c=never
+        return self._switch_cmd(f'ip -c=never link show {spname}', channel=channel)
+
+    @switch_command
+    def connect_switchport(self, spname, channel=None):
+        return self._switch_cmd('sudo ip link set dev {} up'.format(spname), channel=channel)
+
+    @switch_command
+    def disconnect_switchport(self, spname, channel=None):
+        return self._switch_cmd('sudo ip link set dev {} down'.format(spname), channel=channel)
+
+    def load_switchport_net_state(self, spname, channel=None):
+        _, result = self.snapshot(spname, channel=channel)
+        self.logger.debug('load_switchport_net_state returned: ' + result)
+        return 'DOWN' if 'state DOWN' in result else 'UP'
+
+@entity(sourcetypes=[SourceTypes.PROC])
+class LocalSwitch(BaseSwitch):
+    """Pseudo-switch that manipulates links directly on the node via 'ip link', for environments without an accessible switch."""
+    PROMPT = '.+@.+:.+$'
+
+    def _disable_paging(self, channel=None):
+        pass
+
+    @switch_command
+    def snapshot(self, spname, channel=None):
         return self._switch_cmd(f'ip -c=never link show {spname}', channel=channel)
 
     @switch_command

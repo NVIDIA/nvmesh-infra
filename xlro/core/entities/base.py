@@ -32,19 +32,12 @@ import traceback
 import json
 import os
 import pickle
-import sys
 from itertools import count
 
 from xlro.core import infra_conf
 
-PY3 = sys.version_info[0] == 3
-
-if PY3:
-    from collections.abc import MutableMapping, MutableSequence
-    from inspect import getfullargspec as getargspec # type: ignore[attr-defined]
-else:
-    from collections import MutableMapping, MutableSequence
-    from inspect import getargspec
+from collections.abc import MutableMapping, MutableSequence
+from inspect import getfullargspec as getargspec # type: ignore[attr-defined]
 
 # pylint: disable=protected-access
 
@@ -392,10 +385,15 @@ class BaseEntity(object):
 
     # Entity Factory
     @classmethod
-    def from_dict(cls: Type[E], properties: Dict, source: str = SourceTypes.LOCAL) -> E:
+    def from_dict(cls: Type[E], properties: Dict, source: str = SourceTypes.LOCAL, clear: bool = False) -> E:
         # TODO - check why source defaulted to LOCAL rather then _default_source
         properties = expand_dots(properties)
         obj = cls.instance(source=source, **properties)
+        # Clear any non-key values from the existing object.
+        # Particulary important for create, where we may be re-creating something that once existed (e.g., reusing name)
+        # TODO: Should we clear_entity() in post-create? I'm resistant to changing objects under someone's nose.
+        if clear:
+            cls.clear_entity(obj)
         obj.set_properties(properties, source)
         return obj
 

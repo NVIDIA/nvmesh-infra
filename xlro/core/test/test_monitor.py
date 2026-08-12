@@ -22,18 +22,18 @@ from xlro.core.test.utils import DEFAULT_FILE_PERMISSION, TEST_REMOTE
 class TestMonitors(unittest.TestCase):
     host = TEST_REMOTE
     def test_pid_monitor_kill(self):
-        # cmd = 'echo PID=$$ && exec sudo /opt/nvmesh/perfTest/io_stress/btestEX -c -t 0 -T 5 -D -B 300000 R 70 /dev/nvmesh/v0j'
         cmdline = 'nohup tail -f /etc/passwd'
-        cmd = 'tail' #cmdline.partition(' ')[0]
         mon = PidMonitor(cmdline, self.host)
         mon.start()
         time.sleep(1)
-        pid = mon.pid # mon.pid gets wiped by .stop()
-        self.assertTrue(pid in Connection.execute_on_host(self.host, 'pgrep {}'.format(cmd))[0].splitlines(),
-                '"{}" is not running?!'.format(cmd))
+        pid = mon.pid  # mon.pid gets wiped by .stop()
+        self.assertIsNotNone(pid, 'PID not captured within 1s — PidMonitor may have failed to start')
+        _, _, rc = Connection.execute_on_host(self.host, 'kill -0 {}'.format(pid))
+        self.assertEqual(rc, 0, '"tail" is not running?! pid={}'.format(pid))
         mon.stop()
-        self.assertFalse(pid in Connection.execute_on_host(self.host, 'pgrep {}'.format(cmd))[0].splitlines(),
-                '"{}" is still running?!'.format(cmd))
+        time.sleep(0.5)
+        _, _, rc = Connection.execute_on_host(self.host, 'kill -0 {}'.format(pid))
+        self.assertNotEqual(rc, 0, '"tail" is still running?! pid={}'.format(pid))
 
     def test_pattern_handler(self):
         ph = PatternHandler('^hello')
@@ -345,6 +345,8 @@ class TestMonitors(unittest.TestCase):
     def test_system_monitor(self):
         if self.host == 'localhost':
             self.skipTest("test is not passing on localhost mode due to popen slow buffering?")
+        if not path.exists('/run/systemd/journal/socket'):
+            self.skipTest("journald not running in this environment")
         mname = 'journal-monitor'
         mspec = infra_conf.get_config(f'monitors.{mname}').serialize_to_dict()
         sm = mspec_to_multi_monitor({mname: mspec}, hosts='localhost')

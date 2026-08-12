@@ -36,10 +36,6 @@ class K8sClient(ExternalClient):
     VOLUME2CONF_PATH: Dict[Volume, str] = {}  # class level dicts to prevent pv,pvc duplicates
     VOLUME2CLIENTS: Dict[Volume, List[ExternalClient]] = defaultdict(list)
 
-    def get_mon_cls(self, *args, **kwargs):
-        from xlro.core.util.pod_monitor import IOPodMonitor
-        return IOPodMonitor
-
     def do_setup(self):
         assert (self.initiator.execute(
             f"kubectl get node/{self._name} -o jsonpath='{{.status.conditions[?(@.type==\"Ready\")].status}}'")[0]

@@ -17,7 +17,7 @@ import logging
 
 from os import path, mkdir
 
-from raven.utils import json
+import json
 from typing import Optional, Iterable, Any, DefaultDict
 from collections import namedtuple, defaultdict
 from xlro.core.entities import Volume, Client, Host, Manager

@@ -38,7 +38,7 @@ class MgmtHost(Host):
     @prop_loader(SourceTypes.OS, ['mgmt_git_info'])
     def load_mgmt_git_info(self):
         info: Dict[str, Any] = {}
-        exec(self.proc_content(self.pkg_info), {}, info)
+        exec(self.proc_content(self.pkg_info, no_cache=True), {}, info)
         return {'mgmt_git_info': info}
 
     def drop_database(self, full_drop=True):

@@ -159,10 +159,17 @@ class Manager(BaseEntity):
             fpath = auth.get(cert_file, getattr(infra_conf.root.cluster.tls, cert_file))
             # Otherwise, check for file in default locations
             if not fpath:
+                unreadable = []
                 for fpath in default_paths:
                     if os.path.exists(fpath):
-                        break
+                        if os.access(fpath, os.R_OK):
+                            break
+                        unreadable.append(fpath)
                 else:
+                    if unreadable:
+                        raise PermissionError(
+                            f'TLS {cert_file.upper()} file(s) found but not readable: {", ".join(unreadable)}. '
+                            f'Run with sudo or fix file permissions.')
                     raise Exception(f'Unable to connect via TLS. {cert_file.upper()} not configured or found at {" or ".join(default_paths)}.')
                     # No longer trying to copy from the management.  That was probably over-engineered.
                     # Also, sub-directories per management will confuse normal users. Working with multiple managements
@@ -253,6 +260,8 @@ class Manager(BaseEntity):
         self.protocol = self.DEFAULT_PROTO
         try:
             self._connection = self.get_mgmt_connection(user, **auth)
+        except PermissionError:
+            raise
         except Exception as e:
             # We do this as last resort, because it requires SSH access to the nodes
             self.logger.info(f'RESET Failed to get management connection for {self.host}.  Trying to find more HA endpoints via nvmesh.conf')

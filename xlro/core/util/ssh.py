@@ -344,7 +344,13 @@ class LocalPopen(subprocess.Popen):
             with POPEN_LOCK:
                 subprocess.call(["sudo", "kill", "-9" if is_kill else "-15"] + [str(p.pid) for p in procs],
                         stdout=self.DEVNULL, stderr=subprocess.STDOUT)
-            dead, alive = psutil.wait_procs(procs, timeout=2)
+            dead, alive = psutil.wait_procs(procs, timeout=0.5)
+            if alive:
+                # Zombies are already exited but unreaped by their new parent (common in containers
+                # without a proper init). They are not alive in any meaningful sense — skip them.
+                alive = [p for p in alive if self._proc_status(p) not in (psutil.STATUS_ZOMBIE, None)]
+            if alive:
+                _, alive = psutil.wait_procs(alive, timeout=2)
             if alive:
                 self.logger.warn('{}({}) failed! cmd={}, PROCS: {}'.format('kill' if is_kill else 'terminate', self.pid, self._logcmd, alive))
             if me in dead:
@@ -370,6 +376,13 @@ class LocalPopen(subprocess.Popen):
         except:
             pass
         return
+
+    @staticmethod
+    def _proc_status(p):
+        try:
+            return p.status()
+        except psutil.NoSuchProcess:
+            return None
 
     def kill(self):
         self._stop(is_kill=True)

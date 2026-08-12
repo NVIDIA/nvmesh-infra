@@ -99,9 +99,9 @@ def get_hostnames(name: str, skip_cache=False, allow_local=False) -> Tuple[str, 
             except Exception as e2:
                 logger.info(f'get_hostnames({name}) via "host" failed: {repr(e2)}')
                 try:
-                    ssh = f'ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -o LogLevel=ERROR {name} hostname 2>/dev/null'
+                    ssh = f'ssh -o BatchMode=yes -o PasswordAuthentication=no -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -o LogLevel=ERROR {name} hostname 2>/dev/null'
                     # Don't use Connection - it will come right back here :-(
-                    out, err, code = run_local(f'ssh -o PasswordAuthentication=no {name} hostname ')
+                    out, err, code = run_local(ssh)
                     assert code == 0 and out, f'ssh hostname: code={code} err={err}'
                     hostName = out.strip()
                     aliases = [name]
@@ -745,8 +745,11 @@ def _parse_js_conf(d, res):
 
 def parse_js_conf(raw: str) -> Dict[str, Any]:
     from pyjsparser import parse
+    # pyjsparser is ECMA 5.1 only; template literals crash the parser.
+    # Drop those lines since _parse_js_conf cannot use complex expressions like new RegExp(`...`).
+    stripped = '\n'.join('' if '`' in line else line for line in raw.splitlines())
     res = {}
-    for e in parse(raw)['body']:
+    for e in parse(stripped)['body']:
         try:
             _parse_js_conf(e, res)
         except TypeError:

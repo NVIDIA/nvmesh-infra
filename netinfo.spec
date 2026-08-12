@@ -42,6 +42,7 @@ a = Analysis(['xlro/core/util/router.py'],
              pathex=['.'],
              binaries=[
                 # ('/lib64/libffi.so', '.'),
+                ('/lib64/libcrypt.so.1', '.'),  # CentOS7-built libpython links against it; bundle for RHEL8+ runners
              ],
              datas=[
                 ('xlro/core/config', 'xlro/core/config'),
@@ -87,4 +88,7 @@ if not onefile:
 
 for app in apps:
     symlink_target = 'infra' if onefile else 'infra/infra'
-    os.symlink(symlink_target, os.path.join('dist', app))
+    link_path = os.path.join('dist', app)
+    if os.path.lexists(link_path):
+        os.unlink(link_path)
+    os.symlink(symlink_target, link_path)

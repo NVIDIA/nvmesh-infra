@@ -1135,7 +1135,7 @@
           payload: |
             [{% for e in entities %}
                 {
-                  '_id': '{{e.name}}', 'uuid': '{{e.uuid}}',
+                  '_id': '{{e.name}}', 'uuid': '{{e.uuid}}'
                   {% if allowAllocationOnOfflineDrives %}, 'allowAllocationOnOfflineDrives': True {% endif %}
                 }{% if not loop.last %},{% endif %}
             {% endfor %}]
@@ -1172,6 +1172,13 @@
           route: skipFailedMachine
           style: one
           payload: '{ "_id": "{{entities[0].uuid}}" }'
+    UpgradeAgent:
+      ops:
+        keepalive:
+          help: Request keepalive from an agent
+          route: keepalive
+          style: one
+          payload: '{ "_id": "{{entities[0].hostname}}" }'
 "15":
   extends: "14"
   features:
@@ -1187,3 +1194,31 @@
         create:
           params:
             - maxConcurrentClients
+"16":
+  extends: "15"
+  # 16 has no changes relative to CLI
+
+"17.0.0":
+  extends: "16"
+"17.1.0":
+  extends: "17.0.0"
+"17.2.0":
+  extends: "17.1.0"
+  entities:
+      VPG:
+        ops:
+            reclaim:
+                help: Reclaim VPG reserved space
+                route: reclaim
+                style: entities
+                payload: "[{% for e in entities %}{'_id': '{{e.name}}', 'uuid': '{{e.uuid}}'}, {% endfor %}]"
+"18.0.0":
+  extends: "17.2.0"
+  entities:
+      Drive:
+        ops:
+            reinstate:
+                help: Reinstate Drive
+                route: reinstateDiskByDiskIDsAndUUIDs
+                style: entities
+                payload: "[{% for e in entities %}{'diskID': '{{e.name}}', 'uuid': '{{e.uuid}}'}, {% endfor %}]"

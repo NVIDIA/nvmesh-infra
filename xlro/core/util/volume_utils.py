@@ -30,12 +30,12 @@ def get_volume_dict(volume_spec: Union[str, Dict], **kwargs: Any) -> dict:
         try:
             vdefs.update(vol_defs_dict[volume_spec].copy())
         except KeyError:
-            # A hack to make create any EC combo as ec-#D-#P
-            match = re.match(r'^ec-(?P<dataBlocks>\d+)D[-+](?P<parityBlocks>\d+)P$', volume_spec)
+            match = re.match(r'^(?P<prefix>s?ec)-(?P<dataBlocks>\d+)D[-+](?P<parityBlocks>\d+)P$', volume_spec)
             if not match:
                 raise
-            vdefs.update(vol_defs_dict['ec'])
-            vdefs.update({k: int(v) for k, v in match.groupdict().items()})
+            base = 'sec' if match.group('prefix') == 'sec' else 'ec'
+            vdefs.update(vol_defs_dict[base])
+            vdefs.update({k: int(v) for k, v in match.groupdict().items() if k != 'prefix'})
     vdefs.update(kwargs)
     return vdefs
 

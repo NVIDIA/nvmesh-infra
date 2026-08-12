@@ -18,7 +18,6 @@ import json
 
 from xlro.core import infra_conf
 import xlro.core.util.monitor as monitor
-import xlro.core.util.io_monitors as io_monitors
 from xlro.core.util.actions import EventKeyFilter, Action, RemoteCmdAction
 from xlro.core.entities import Manager
 
@@ -78,7 +77,8 @@ def mspec_to_monitors(mspecs: dict, hosts: Optional[str] = None, manager: Option
     if logdir:
         os.makedirs(logdir, exist_ok=True)
 
-    mon_packages = ['xlro.core.util.monitor', 'xlro.core.util.io_monitors', 'xlro.core.util.watchers', 'xlro.core.util.pod_monitor']
+    # xlro.infra refs OK because failure to import will be silently ignored in cname_to_class()
+    mon_packages = ['xlro.core.util.monitor', 'xlro.infra.util.io_monitors', 'xlro.infra.util.watchers', 'xlro.infra.util.pod_monitor']
     for mname in monitor_names or mspecs.keys():
         spec = mspecs[mname]
         if not isinstance(spec, dict):

@@ -25,7 +25,7 @@ from .volume import Chunk, Segment, Partition, Volume, PRaid, Block, VolumeSecur
 from .mgmt_host import MgmtHost
 from .manager import Manager
 from .vpg import VPG, DriveClass, TargetClass
-from .network import Node, NIC, BaseSwitch, MellanoxSwitch, SwitchPort, ROCEPort, TCPPort, IBPort, DellSwitch, CumulusSwitch, SupermicroSwitch,HostPort, CiscoSwitch, BasePort, UnmanagedMellanoxSwitch, VirtualSwitch, UnknownSwitch, BFRepresentorPort
+from .network import Node, NIC, BaseSwitch, MellanoxSwitch, SwitchPort, ROCEPort, TCPPort, IBPort, DellSwitch, CumulusSwitch, SupermicroSwitch,HostPort, CiscoSwitch, BasePort, UnmanagedMellanoxSwitch, VirtualSwitch, LocalSwitch, UnknownSwitch, BFRepresentorPort
 from .mrsp import MRSP, Controller, MDrive, NVMESHBdev, TPV, Subsystem, MDrivePair
 from .mrsp_client import MRSPLinuxClient, BlueField, MRSPWindowsClient, NVMEDevice, MRSPClient
 from .nvnode import NvNode

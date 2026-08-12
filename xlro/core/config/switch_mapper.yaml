@@ -8,7 +8,7 @@ default_lookup:
 switch_types:
   # Infra supported switch types mapped to respective regexes to try and match in the mentioned lookup fields
   MellanoxSwitch:
-    patterns: 'MLNX|MSN'
+    patterns: 'MLNX|MSN|nvme-mec-ib'
   UnmanagedMellanoxSwitch:
     patterns: '(SwitchIB|Quantum) Mellanox Technologies'
   SupermicroSwitch:

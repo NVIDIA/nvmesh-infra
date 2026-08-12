@@ -1,0 +1,1340 @@
+#!/usr/bin/python3
+
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+import sys, subprocess, json, os.path, os, fcntl
+from abc import ABCMeta, abstractmethod
+import platform
+import logging
+import glob
+import time
+import socket
+import argparse
+import threading
+
+args = None
+
+MDIR = "/opt/nvmesh/"
+LOGS_TIME_STAMP = time.strftime("%Y%m%d-%H%M%S")
+LOG_FILE = "nvmesh_collector.log"
+CUSTOMER_INFO_FILE_NAME = "customer_info"
+CRASH_DIR = "/var/crash/"
+TOMA_PID_FILE = "/var/run/nvmesh/nvmeshtarget/toma.pid"
+MGMT_PID_FILE = "/var/run/nvmesh/nvmeshmgr/management.pid"
+NVMESH_LOG_DIR = "/var/log/nvmesh/"
+NVMESH_VAR_OPT_DIR = "/var/opt/nvmesh"
+TOMA_CORE_DUMP_DIR = "/var/opt/nvmesh"
+NVMESHUM_SRCS = "/tmp/infraClient/nvmeshum"
+NVMESHUM_LOG_COLLECTOR_PATH = "/opt/nvmesh/nvmeshum/bin/logs_collector.sh"
+NVMESH_APPORT_CORE_DUMPS_DIR = "/var/lib/apport/coredump"
+SYSTEMD_CORE_DUMPS_DIR = "/var/lib/systemd/coredump"
+ETHTOOL_LOG_FILE = "ethtool_interfaces.log"
+CLNT_ANALYZER_PATH = "/usr/bin/nvmesh_clnt_analyzer"
+SCAN_LOCKS_PATH = "/opt/nvmesh/common-repo/tools/scan_locks_ec"
+TRACE_DAEMON_SNAPSHOT_SCRIPT_PATH = "/opt/nvmesh/common-repo/scripts/nvmesh_snapshot_logs.sh"
+HEALTH_CHECK_SCRIPT_PATH = "/usr/bin/nvmesh_check"
+NVMESH_PKGS_INFO_FILE_NAME = "nvmesh_packages_info"
+ALL_PKGS_INFO_FILE_NAME = "all_packages_info"
+DB_DUMP_EXCLUDED_COLLECTIONS = ['statistics']
+MD_DB_DUMP_EXCLUDED_COLLECTIONS = ['']
+TOMA_PID = False
+TOMA_EXECUTABLE_FILE_NAME = "nvmeibt_toma"
+MGMT_CONF_PATH = "/etc/nvmesh/management.js.conf"
+MGMT_DB_UTIL_PATH = "/opt/nvmesh/management/upgradeScripts/utils/upgradeUtils.sh"
+DB_DUMP_DIRNAME = "db_dump"
+REMOTE_DB_DUMP_PATH = "/tmp/{0}".format(DB_DUMP_DIRNAME)
+TRACE_DAEMON_GENERATED_CONF_PATH = "/var/log/nvmesh/trace_daemon/.tracedaemon.conf"
+KAFKA_CONF_PATH = "/opt/kafka/config/server.properties"
+
+# Items collected only into the management tgz (in addition to whatever is already collected).
+MGMT_FILES_TO_COPY_ARR = [
+    MGMT_CONF_PATH,
+    os.path.join(MDIR, "management", "version"),
+]
+
+MGMT_VAR_LOG_NVMESH_PATHS = [
+    "/var/log/nvmesh/management.out",
+    "/var/log/nvmesh/mgmtStats",
+]
+
+MGMT_VAR_OPT_NVMESH_PATHS = [
+    "/var/opt/nvmesh/mgr",
+]
+
+# Filters applied when generating the management-only views of syslog and journalctl.
+MGMT_SYSLOG_FILTER = r"nvmeshmgr"
+MGMT_JOURNALCTL_FILTER = r"nvmeshmgr"
+
+DistributionMGR = {}
+
+SOURCE_FILES_TO_COPY_ARR = [
+    os.path.join(MDIR, "client-repo"),
+    os.path.join(MDIR, "target-repo"),
+    os.path.join(MDIR, "common-repo")
+]
+
+FILES_TO_COPY_ARR = [
+    "/etc/nvmesh/nvmesh.conf",
+    "/etc/nvmesh/configs/",
+    # nvmeibc dirs
+    # nvmeibc files
+    # nvmeiba files
+    "/sys/module/nvmeibc/parameters/debug_level",
+    "/sys/module/nvmeibs/parameters/debug_level",
+    os.path.join(os.path.normpath(os.path.join(os.path.abspath(__file__), '../')), "toma")
+]
+
+FILES_TO_COPY_VIA_LINKS_ARR = [
+    "/var/log/nvmesh"
+]
+
+FILES_TO_TIMED_COPY_ARR = [
+    "/proc/nvmeibs/*.csv",
+    "/proc/nvmeibs/.*csv",
+    "/proc/nvmeibs/disk_info",
+    "/proc/nvmeibs/log*",
+    "/proc/nvmeibs/version",
+    "/proc/nvmeibs/toma_status/*",
+    "/proc/nvmeibs/serjio",
+    "/proc/nvmeibs/arnic_prefer",
+    "/proc/nvmeibs/clients",
+    "/proc/nvmeibs/disks",
+    "/proc/nvmeibs/nic_gids",
+    "/proc/nvmeibs/rsrc_info.json",
+    "/proc/nvmeibs/smart*",
+    "/proc/nvmeibs/memmgr_info",
+    "/proc/meminfo",
+    "/proc/net/bonding/",
+    "/proc/interrupts",
+    "/proc/nvmeibc/disks",
+    "/proc/nvmeibc/volumes",
+    "/proc/nvmeibc/jam",
+    "/proc/nvmeibc/cflags",
+    "/proc/nvmeibc/dict_sign",
+    "/proc/nvmeibc/status",
+    "/proc/nvmeibc/version",
+    "/proc/nvmeibc/rsrc_info.json",
+    "/proc/nvmeibc/inst_list.json",
+    "/proc/nvmeibc/net",
+    "/proc/nvmeibc/nics.json",
+    "/proc/nvmeibc/status.json",
+    "/proc/nvmeibc/memmgr_info",
+    "/proc/nvmeiba/status",
+    "/proc/nvmeiba/version",
+    "/proc/cmdline"
+]
+
+CONFIGFS_TO_COPY_ARR = [
+    "/sys/kernel/config/nvmeibc"
+]
+
+TIMED_COMMANDS_ARR = []
+
+COMMANDS_ARR = [
+    "ofed_info >> ofed_info_log",
+    "ifconfig -a >> ifconfig_log",
+    "uname -a >> uname_log",
+    "dmesg -TL >> dmesg_log",
+    "ibv_devinfo -vv >> ibv_devinfo_log",
+    "ibstatus >> ibstatus_log",
+    "ibstat >> ibstat_log",
+    "lspci -vvv >> lspci_vvv_log",
+    "lspci -tv >> lspci_tv_log",
+    "lscpu >> lscpu_log",
+    "dmidecode >> dmidecode_log",
+    "lsmod >> lsmod_log",
+    "iblinkinfo >> iblinkinfo_log",
+    "ldd /usr/bin/ib_send_bw >> ldd_ib_send_bw_log",
+    "df -h >> df_log",
+    "cat /proc/*/stack >> procs_stack_info"
+]
+
+PREP_ENV_COMMANDS = [
+    "echo 1 > /proc/sys/kernel/sysrq",  # enable all functions of sysrq
+    "echo w > /proc/sysrq-trigger"  # dump uninterruptible (blocked) tasks state
+]
+
+
+def print_to_stdout(msg):
+    print(msg)
+    sys.stdout.flush()
+
+
+class OsDistName(object):
+    CENTOS = 'centos'
+    REDHAT = 'redhat'
+    UBUNTU = 'ubuntu'
+    SUSE = 'suse'
+    ORACLE_LINUX = 'oracle'
+    ALMA_LINUX = 'almalinux'
+    ROCKY_LINUX = 'rocky linux'
+
+
+class DistManager(object):
+    __metaclass__ = ABCMeta
+
+    PKG_PREFIX = 'nvmesh-'
+    NVMESH_CORE_PKG = ''.join([PKG_PREFIX, 'core'])
+    NVMESH_MANAGEMENT_PKG = ''.join([PKG_PREFIX, 'management'])
+    SYSLOG_FILE = '/var/log/messages'
+    SYSLOG_ARCHIVE_DELIMITER = '-'
+
+    @abstractmethod
+    def getOsName(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def isPackageInstalled(self, pkgName):
+        raise NotImplementedError
+
+    @abstractmethod
+    def collectNVMeshPackagesInfo(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def collectAllPackagesInfo(self):
+        raise NotImplementedError
+
+
+class RedhatDistManager(DistManager):
+    def getOsName(self):
+        return OsDistName.REDHAT
+
+    def isPackageInstalled(self, pkgName):
+        command = 'rpm -q {0}'.format(pkgName)
+        result = runCommand(command)
+        return result[2] == 0
+
+    def collectNVMeshPackagesInfo(self):
+        command = 'rpm -qa {0}* > {1}'.format(self.PKG_PREFIX, NVMESH_PKGS_INFO_FILE_NAME)
+        result = runCommand(command)
+        return result[2] == 0
+
+    def collectAllPackagesInfo(self):
+        command = 'rpm -qa > {0}'.format(ALL_PKGS_INFO_FILE_NAME)
+        result = runCommand(command)
+        return result[2] == 0
+
+
+class UbuntuDistManager(DistManager):
+    SYSLOG_FILE = '/var/log/syslog'
+    SYSLOG_ARCHIVE_DELIMITER = '.'
+
+    def getOsName(self):
+        return OsDistName.UBUNTU
+
+    def isPackageInstalled(self, pkgName):
+        command = 'dpkg --list {0}'.format(pkgName)
+        result = runCommand(command)
+        return result[2] == 0
+
+    def collectNVMeshPackagesInfo(self):
+        command = 'dpkg --list {0}* > {1}'.format(self.PKG_PREFIX, NVMESH_PKGS_INFO_FILE_NAME)
+        result = runCommand(command)
+        return result[2] == 0
+
+    def collectAllPackagesInfo(self):
+        command = 'dpkg --list > {0}'.format(ALL_PKGS_INFO_FILE_NAME)
+        result = runCommand(command)
+        return result[2] == 0
+
+
+def check_root():
+    if not os.geteuid() == 0:
+        sys.exit("Script must be run as root")
+
+
+def get_freedesktop_os_release():
+    os_release = {}
+    os_release_info_file = "/etc/os-release"
+    try:
+        with open(os_release_info_file, "r") as f:
+            for line in f:
+                if "=" in line:
+                    key, value = line.strip().split("=", 1)
+                    os_release[key] = value.strip('"')
+    except Exception as e:
+        logging.error(f'Failed to read {os_release_info_file}, ex: {e}')
+
+    return os_release
+
+
+def initDistributionManager():
+    platformInfo = platform.freedesktop_os_release() if hasattr(platform, "freedesktop_os_release") else  get_freedesktop_os_release()
+    osName = platformInfo['NAME'].lower() if 'NAME' in platformInfo else None
+
+    global DistributionMGR
+    # as long as we don't need zypper for suse we can use the RedhatDistManager
+    if osName in [OsDistName.CENTOS, OsDistName.REDHAT, OsDistName.SUSE, OsDistName.ORACLE_LINUX, OsDistName.ALMA_LINUX, OsDistName.ROCKY_LINUX]:
+        DistributionMGR = RedhatDistManager()
+
+    elif osName == OsDistName.UBUNTU:
+        DistributionMGR = UbuntuDistManager()
+
+    else:
+        err = 'Detected Unsupported OS'
+        if platformInfo:
+            err += f' platformInfo: {platformInfo}'
+
+        raise OSError(err)
+
+
+def represents_int(s):
+    try:
+        int(s)
+        return True
+    except ValueError:
+        return False
+
+def getBaseHostname():
+    return socket.gethostname().split('.')[0]
+
+
+def get_output_dir_name():
+    isMgmtInstalled = DistributionMGR.isPackageInstalled(DistributionMGR.NVMESH_MANAGEMENT_PKG) == True
+    label = 'mgmt_' if isMgmtInstalled else ''
+    return getBaseHostname() + "_nvmesh_logs_" + label + LOGS_TIME_STAMP
+
+
+def is_mgmt_installed():
+    return DistributionMGR.isPackageInstalled(DistributionMGR.NVMESH_MANAGEMENT_PKG) == True
+
+
+def get_run_output_dir_name():
+    return getBaseHostname() + "_nvmesh_logs_" + LOGS_TIME_STAMP
+
+
+def get_host_collection_dir_name():
+    return getBaseHostname() + "_nvmesh_core_logs_" + LOGS_TIME_STAMP
+
+
+def get_mgmt_collection_dir_name():
+    return getBaseHostname() + "_nvmesh_mgmt_logs_" + LOGS_TIME_STAMP
+
+
+def create_output_dir(outputDir=None):
+    if outputDir is None:
+        outputDir = get_output_dir_name()
+
+    if not os.path.exists(outputDir):
+        os.makedirs(outputDir)
+
+    os.chdir(outputDir)
+    logging.basicConfig(filename=LOG_FILE, level=logging.DEBUG, format='%(asctime)s\t%(levelname)s\t%(message)s')
+
+
+def create_host_collection_dirs():
+    """Create the run dir with core (always) and mgmt (if installed) sub-dirs.
+
+    Layout produced:
+        <cwd>/<host>_nvmesh_logs_<ts>/
+            <host>_nvmesh_core_logs_<ts>/    <- core collection sub-dir
+            <host>_nvmesh_mgmt_logs_<ts>/    <- mgmt collection sub-dir (only if mgmt installed)
+
+    On return, cwd is the core collection sub-dir and logging is configured
+    to write into it using an absolute path (so subsequent chdir does not move
+    the log file).
+    """
+    run_dir = get_run_output_dir_name()
+    core_name = get_host_collection_dir_name()
+    mgmt_name = get_mgmt_collection_dir_name() if is_mgmt_installed() else None
+
+    if not os.path.exists(run_dir):
+        os.makedirs(run_dir)
+
+    core_path = os.path.join(run_dir, core_name)
+    if not os.path.exists(core_path):
+        os.makedirs(core_path)
+
+    if mgmt_name is not None:
+        mgmt_path = os.path.join(run_dir, mgmt_name)
+        if not os.path.exists(mgmt_path):
+            os.makedirs(mgmt_path)
+
+    os.chdir(core_path)
+    logging.basicConfig(
+        filename=os.path.abspath(LOG_FILE),
+        level=logging.DEBUG,
+        format='%(asctime)s\t%(levelname)s\t%(message)s',
+    )
+
+    return core_name, mgmt_name
+
+
+def runTimedCommand(command, timeout):
+    logging.debug('Subprocess: "' + command + '"')
+    output = ''
+    retcode = 1
+    process = None
+
+    def _communicate():
+        output, _ = process.communicate()
+
+    try:
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
+        communicate_thread = threading.Thread(target=_communicate)
+        # Mark thread as daemon because we understand the some commands may stuck in the kernel and
+        # We need logs collector to finish
+        communicate_thread.daemon = True
+        try:
+            communicate_thread.start()
+            communicate_thread.join(timeout)
+            if communicate_thread.is_alive():
+                err = 'Error: Command {} timed out'.format(command)
+                logging.error(err)
+                print_to_stdout(err)
+                # Kill the timed out process
+                process.terminate()
+        finally:
+            retcode = process.returncode
+
+            if retcode is None:
+                # Processes still alive? let it 1 second to be close after the kill
+                time.sleep(1)
+                # We waited enough..
+                retcode = process.returncode
+                if retcode is None:
+                    retcode = -110
+            ret = (retcode == 0)
+
+        if not ret:
+            err = 'Error: Command {} timed out or failed with retcode {}'.format(command, retcode)
+            logging.error(err)
+            print_to_stdout(err)
+        else:
+            logging.debug('Subprocess finished')
+
+    except (OSError) as exception:
+        logging.error('Exception occured: ' + str(exception))
+        logging.error('Subprocess failed')
+        return (False, output, False)
+
+    return (ret, output, retcode)
+
+
+def log_fdisk_output():
+    # Define log file paths
+    nvme_log_file = "fdisk_dev_nvme_log"
+    nvmesh_log_file = "fdisk_dev_nvmesh_log"
+    # Get the list of block devices
+    success, output, _ = runCommand("lsblk -nd -o NAME,TYPE")
+    if not success:
+        logging.error("Error running lsblk to collect disks for fdisk logs")
+        return
+
+    devices = [line.split()[0] for line in output.decode('utf-8').strip().split("\n") if "disk" in line]
+
+    for dev in devices:
+        dev_path = f"/dev/{dev}"
+        log_file = None
+        if dev_path.startswith("/dev/nvmesh"):
+            log_file = nvmesh_log_file
+        elif dev_path.startswith("/dev/nvme"):
+            log_file = nvme_log_file
+
+        if log_file:
+            runTimedCommand(f"fdisk -l {dev_path} >> {log_file}; echo '' >> {log_file}", 10)
+
+
+def runCommand(command):
+    logging.debug('Subprocess: "' + command + '"')
+    output = ''
+    retcode = 1
+    try:
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
+        output, _ = process.communicate()
+        retcode = process.returncode
+
+        logging.debug(output)
+    except OSError as exception:
+        logging.error('Exception occured: ' + str(exception))
+        logging.error('Subprocess failed')
+        return False, output, False
+    else:
+        # no exception was raised
+        logging.debug('Subprocess finished')
+
+    return True, output, retcode
+
+
+def collect_volumes_info():
+    instances_list_file = '/proc/nvmeibc/inst_list.json'
+
+    if not os.path.exists(instances_list_file):
+        return
+
+    res = runCommand('cat {0}'.format(instances_list_file))
+    if res[2]:
+        return
+
+    try:
+        inst_list_json = json.loads(res[1])
+
+        for inst in inst_list_json['instances']:
+            runCommand('cp -rp --parents /proc/{0}/volumes .'.format(inst['name']))
+    except:
+        return
+
+
+def collect_filtered_interrupts_by_entity(entity):
+    proc_interrupts_dir = 'proc'
+    if not os.path.exists(proc_interrupts_dir):
+        os.makedirs(proc_interrupts_dir)
+
+    grep_io = ''
+    if entity == 'nvme':
+        grep_io = 'grep io |'
+
+    cmd = 'for x in `grep {0} /proc/interrupts | {1} cut -d: -f1` ; do sudo cat /proc/irq/$x/smp_affinity_list ; done | sort | uniq -c > {2}/interrupts_{0}'.format(
+        entity, grep_io, proc_interrupts_dir)
+    runCommand(cmd)
+
+
+def collect_nvme_and_network_interrupts_and_logs():
+    for entity in ['nvme', 'ib', 'mlx']:
+        collect_filtered_interrupts_by_entity(entity)
+
+    net_proc = subprocess.Popen("ifconfig -a | sed 's/[ \t].*//;/^$/d'", stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, shell=True)
+    net_proc.wait()
+    net_lines = net_proc.stdout.readlines()
+    ethtool_flags = ['--show-permaddr', '', '--show-pause', '--show-features', '--statistics']
+
+    for line in net_lines:
+        interface_name = line.decode("utf-8").rstrip(':\n')
+        runCommand("echo '=================================================="
+                   + " {0} ==================================================' >> {1}".format(interface_name,
+                                                                                              ETHTOOL_LOG_FILE))
+        for flag in ethtool_flags:
+            cmd = ''
+            if flag == '--statistics':
+                cmd += "echo 'statistics for {0}:' >> {1};".format(interface_name, ETHTOOL_LOG_FILE)
+            cmd += "ethtool {0} {1} >> {2}; echo  >> {2}".format(flag, interface_name, ETHTOOL_LOG_FILE)
+            runCommand(cmd)
+
+        collect_filtered_interrupts_by_entity(interface_name)
+
+
+def create_log_files():
+    for cmd in COMMANDS_ARR:
+        runCommand(cmd)
+
+    for cmd in TIMED_COMMANDS_ARR:
+        runTimedCommand(cmd, 10)
+
+    log_fdisk_output()
+
+
+def prepare_env_for_log_collection():
+    for cmd in PREP_ENV_COMMANDS:
+        runCommand(cmd)
+
+
+def copy_sys_files(copySourceFiles=False):
+    global SOURCE_FILES_TO_COPY_ARR
+    if copySourceFiles:
+        if args.KUB_OPERATOR:
+            SOURCE_FILES_TO_COPY_ARR = ["/opt/nvmesh-operator/cache"]
+
+        print_to_stdout("Collecting NVMesh source files...")
+        for loc in SOURCE_FILES_TO_COPY_ARR:
+            runCommand("ls {0} && cp -rp --parents {0} . || exit 0".format(loc))
+
+    for loc in FILES_TO_COPY_ARR:
+        runCommand("ls {0} && cp -rp --parents {0} . || exit 0".format(loc))
+
+    # create symlinks for a later copy via tar following the links
+    # reduces storage use on the machine
+    for loc in FILES_TO_COPY_VIA_LINKS_ARR:
+        dir_name = os.path.dirname(loc)
+        dest_file = loc
+        if loc[0] == '/':
+            dest_file = loc[1:]
+        if dir_name != '':
+            os.makedirs(dir_name[1:])
+        os.symlink(loc, dest_file)
+
+    for loc in FILES_TO_TIMED_COPY_ARR:
+        runTimedCommand("ls {0} && cp -rp --parents {0} . || exit 0".format(loc), timeout=10)
+
+    # Copy configfs files. Because this is configfs, we must cat each file seperately.
+    for loc in CONFIGFS_TO_COPY_ARR:
+        # First make the subdirs
+        runCommand("find {0} -type d -exec mkdir -p .{{}} \\;".format(loc))
+        # Now "copy" the files
+        runCommand("for i in `find {0} -type f`; do cat $i > .$i; done".format(loc))
+
+    # collect var dir while excluding the backups, metadata_disk_image and mgr
+    # directories (mgr belongs to the management tgz only).
+    local_dest_var_dir = NVMESH_VAR_OPT_DIR[1:]
+    runCommand("mkdir -p {0}; rsync -av --progress {1}/ {2} --exclude backups --exclude metadata_disk_image --exclude mgr".format(
+        local_dest_var_dir, NVMESH_VAR_OPT_DIR, local_dest_var_dir))
+
+
+def copy_last_crash_files():
+    if os.path.exists(CRASH_DIR):
+        crash_directories = [os.path.join(CRASH_DIR, name) for name in os.listdir(CRASH_DIR) if
+                             os.path.isdir(os.path.join(CRASH_DIR, name))]
+        if crash_directories != []:
+            newest_crash = max(crash_directories, key=os.path.getctime)
+            runCommand("cp -rp %s ." % newest_crash)
+            crashdirname = os.path.basename(newest_crash)
+            runCommand("cp -p {0}*{1}.crash {1}".format(CRASH_DIR, crashdirname))
+        else:
+            print_to_stdout("Crash dir is empty")
+    else:
+        print_to_stdout("No crash dir")
+
+
+def copy_syslog_files(mgmt_filter=False):
+    if os.path.isfile(DistributionMGR.SYSLOG_FILE) != True:
+        return
+
+    if mgmt_filter:
+        # The management archive always gets a focused, mgmt-only filtered view of
+	# Archived syslog files are intentionally not collected here (they remain in the core archive).
+        print_to_stdout("Filtering syslog for management...")
+        runCommand(r"cat %s | grep --text '%s' >> messages_filtered" % (
+            DistributionMGR.SYSLOG_FILE, MGMT_SYSLOG_FILTER))
+        return
+
+    if args.FILTER_SYSLOG:
+        print_to_stdout("Filtering syslog...")
+
+        additionalKeywords = ""
+        if args.keywords:
+            additionalKeywords = "\\|{}".format("\\|".join(args.keywords))
+
+        runCommand(r"cat %s | grep --text 'nvmeib\|nvmeshmgr\|nvmeshum\|managementCM\|kafka%s' >> messages_filtered" % (
+        DistributionMGR.SYSLOG_FILE, additionalKeywords))
+    else:
+        runCommand("cp -rp %s ." % DistributionMGR.SYSLOG_FILE)
+
+    if args.COLLECT_ARCHIVE_SYSLOG:
+        print_to_stdout("Collecting Archived syslog files...")
+        runCommand("cp -rp %s%s* ." % (DistributionMGR.SYSLOG_FILE, DistributionMGR.SYSLOG_ARCHIVE_DELIMITER))
+
+
+# else:
+#	if args.FILTER_SYSLOG == True:
+#		print_to_stdout("Filtering syslog from journalctl...")
+#		runCommand("journalctl | grep 'nvmeib\|nvmemgr' >> journalctl_filtered_syslog")
+#	else:
+#		print_to_stdout("Collecting full syslog from journalctl...")
+#		runCommand("journalctl >> journalctl_syslog")
+
+
+def collect_journalctl(grep_pattern=None):
+    # When grep_pattern is provided, the same journalctl commands are executed but
+    # piped through `grep -i` before being written. This is used for the
+    # management archive, where we want a filtered view. The output filenames
+    # remain identical so each archive contains the same filenames with content
+    # matching its scope.
+    grep_suffix = " | grep -i '{0}'".format(grep_pattern) if grep_pattern else ""
+
+    if args.JOURNALCTL_NUM_OF_LINES:
+        file_name = "journalctl_curr_boot_log_%s_lines" % (args.JOURNALCTL_NUM_OF_LINES)
+        runCommand("journalctl -xb -0 -n %s -o short-precise%s >> %s" % (args.JOURNALCTL_NUM_OF_LINES, grep_suffix, file_name))
+        runCommand("journalctl -xb -1 -n %s -o short-precise%s >> %s" % (args.JOURNALCTL_NUM_OF_LINES, grep_suffix, file_name.replace("curr", "prev")))
+
+    file_name = "journalctl_curr_boot_log_%s_seconds" % (args.JOURNALCTL_SINCE_DATE)
+    runCommand("journalctl -xb -0 -S %s -o short-precise%s >> %s" % (args.JOURNALCTL_SINCE_DATE, grep_suffix, file_name))
+    file_name = file_name.replace("curr", "prev")
+    runCommand("journalctl -xb -1 -S %s -o short-precise%s >> %s" % (args.JOURNALCTL_SINCE_DATE, grep_suffix, file_name))
+
+    if not args.JOURNALCTL_NUM_OF_LINES:
+        runCommand("[ -s %s ] || journalctl -xb -1 -n 10000 -o short-precise%s >> journalctl_prev_boot_log_10000_lines" % (file_name, grep_suffix))
+
+
+def get_toma_pid():
+    if os.path.isfile(TOMA_PID_FILE) == True:
+        f = open(TOMA_PID_FILE, 'r')
+        toma_pid = f.read()
+        return toma_pid.strip()
+    else:
+        return False
+
+def collect_toma_status():
+    if TOMA_PID:
+        max_retries = 5
+
+        status_files_list = glob.glob(NVMESH_LOG_DIR + "*.stat")
+        if len(status_files_list) > 0:
+            prev_status = max(status_files_list, key=os.path.getctime)
+        else:
+            prev_status = ""
+
+        # signaling 10 to toma for creating the status file
+        res = runCommand("kill -10 %s" % TOMA_PID);
+
+        if res[2]:
+            print_to_stdout("WARNING: Toma status file creation failed")
+            return
+
+        success = False
+        retry = 0
+        while retry < max_retries and not success:
+            # collecting the status file if exists
+            status_files_list = glob.glob(NVMESH_LOG_DIR + "*.stat")
+            if len(status_files_list) > 0:
+                newest_status = max(status_files_list, key=os.path.getctime)
+                if prev_status != newest_status:
+                    runCommand("cp -rp %s ." % newest_status)
+                    success = True
+
+            retry += 1
+            if not success:
+                print_to_stdout("Waiting for Toma status file to be created")
+                time.sleep(1)
+
+        if not success:
+            print_to_stdout("WARNING: Toma new status file doesn't exists")
+    else:
+        print_to_stdout("Warning: Can not find TOMA pid file (Toma might be down)")
+
+
+def collect_toma_core_using_gcore():
+    if TOMA_PID:
+        cmd = "which gcore && gcore -o {0}/toma_core {1} && cp {0}/toma_core.{1} . && rm {0}/toma_core.{1} || exit 1".format(
+            TOMA_CORE_DUMP_DIR, TOMA_PID)
+        res = runTimedCommand(cmd, 30)
+
+        if int(res[2]) == True:
+            print_to_stdout("Error: could not collect TOMA core file using gcore - " + res[1])
+    else:
+        print_to_stdout("Warning: Can not find TOMA pid file")
+
+
+def collect_systemd_toma_core_dumps():
+    if not os.path.exists(SYSTEMD_CORE_DUMPS_DIR):
+        return
+
+    cmd = "ls {0}/core.nvmeibt_toma*.lz4 > /dev/null 2>&1 && cp -rp --parents {0}/core.nvmeibt_toma*.lz4 . || exit 0".format(
+        SYSTEMD_CORE_DUMPS_DIR)
+    res = runTimedCommand(cmd, 30)
+
+    if int(res[2]) == True:
+        print_to_stdout("Error: could not collect systemd TOMA core dumps - " + res[1])
+
+
+def collect_nvmeshum_logs():
+    if not os.path.exists(NVMESHUM_LOG_COLLECTOR_PATH):
+        return
+
+    cmd = "NVMESHUM_SRC={0} {1} {2}".format(NVMESHUM_SRCS, NVMESHUM_LOG_COLLECTOR_PATH, os.getcwd())
+    res = runTimedCommand(cmd, 900)
+
+    if int(res[2]) == True:
+        print_to_stdout("Error: could not collect NVMeshUM logs - err: {0}".format(res[1]))
+
+
+def check_and_collect_remote_trace_daemon_logs():
+    if not os.path.exists(TRACE_DAEMON_GENERATED_CONF_PATH):
+        return
+
+    print_to_stdout("Copying remote trace daemon logs if needed...")
+
+    cmd = ". {0}; ([ ! -z \"$TRACE_LOGS_PATH\" ] && [ -e \"$TRACE_LOGS_PATH\" ]) && cp -rp $TRACE_LOGS_PATH/ trace_daemon_remote_logs/ || exit 0".format(
+        TRACE_DAEMON_GENERATED_CONF_PATH)
+    res = runCommand(cmd)
+    if int(res[2]) == True:
+        print_to_stdout("Error: could not copy trace daemon logs from remote path, err: {1}".format(res[1]))
+
+def get_management_pid():
+    if os.path.isfile(MGMT_PID_FILE):
+        with open(MGMT_PID_FILE, 'r') as f:
+            try:
+                return int(f.read().strip())
+            except ValueError:
+                print_to_stdout(f"Error: could not read management PID from {MGMT_PID_FILE}")
+                return None
+    else:
+        print_to_stdout(f"Error: management PID file {MGMT_PID_FILE} not found")
+
+    return None
+
+def collect_mgmt_stats():
+    # find the management app.js PID and do SIGUSR2
+    # this will cause the management to dump the internalState to /var/log/nvmesh/mgmtStats/
+    # these files will be collected
+    mgmt_pid = get_management_pid()
+
+    if not mgmt_pid:
+        # error already printed in get_management_pid
+        return
+
+    # trigger mgmt internal state dump
+    # Send SIGUSR2 to the management app.js PID
+    cmd = f'kill -USR2 {mgmt_pid}'
+    _, output, retcode = runCommand(cmd)
+    if retcode != 0:
+        print_to_stdout(f'Error: could not send SIGUSR2 to management app.js - exit code: {retcode} output: {output}')
+        return
+
+    # list the files in the mgmtStats directory
+    cmd = "ls -l /var/log/nvmesh/mgmtStats"
+    _, output, retcode = runCommand(cmd)
+    if retcode != 0:
+        print_to_stdout(f'Error: could not collect management stats - exit code: {retcode} output: {output}')
+
+
+def copy_mgmt_files():
+    # Copy management-related files into the current directory (the mgmt sub-dir).
+
+    for loc in MGMT_FILES_TO_COPY_ARR:
+        runCommand("ls {0} && cp -rp --parents {0} . || exit 0".format(loc))
+
+    for loc in MGMT_VAR_LOG_NVMESH_PATHS:
+        runCommand("ls {0} && cp -rp --parents {0} . || exit 0".format(loc))
+
+    for loc in MGMT_VAR_OPT_NVMESH_PATHS:
+        runCommand("ls {0} && cp -rp --parents {0} . || exit 0".format(loc))
+
+def dump_db_to_file(execToolCmd=None, dumpOutputDir=None):
+    # check if db connectionstring resolve util exists
+    if dumpOutputDir is None:
+        dumpOutputDir = DB_DUMP_DIRNAME
+        if os.path.isfile(MGMT_DB_UTIL_PATH) == False:
+            return False
+    else:
+        cmd = "{0} [ -e {1} ]".format(execToolCmd, MGMT_DB_UTIL_PATH)
+        res = runCommand(cmd)
+        if res[2]:
+            return False
+
+    print_to_stdout("Dumping database...")
+
+    # try get the db connection string using the resolve util
+    cmds = []
+    cmds.append("{0} getMongoManagementCommandLineArgumentsForMongoDump | tail -n 1".format(MGMT_DB_UTIL_PATH))
+    cmds.append("{0} getMongoNVMeshMetadataCommandLineArgumentsForMongoDump | tail -n 1".format(MGMT_DB_UTIL_PATH))
+
+    for cmd in cmds:
+        if execToolCmd is not None:
+            cmd = "{0} {1}".format(execToolCmd, cmd)
+        res = runCommand(cmd)
+        if res[2] or len(res[1]) == 0:
+            print_to_stdout("Error: could not get DB connection string for dumping the DB: {0}".format(res[1]))
+            return False
+
+        # dump the db
+        mongoCliArguments = res[1].rstrip().decode("utf-8")
+        mongoCliArguments = mongoCliArguments.replace("$external",
+                                                      "\\$external")  # "$external" is the name of the authentication DB when using TLS with X509 - should not be evaluated when running the command
+        cmd = "mongodump {0} --out={1}".format(mongoCliArguments, dumpOutputDir)
+
+        if not args.INCLUDE_ALL_DB_COLLECTIONS:
+            exclude_flag = " --excludeCollection "
+            # getMongoManagementCommandLineArgumentsForMongoDump case
+            if cmd is cmds[0]:
+                exclude_list = exclude_flag.join(DB_DUMP_EXCLUDED_COLLECTIONS)
+            # getMongoNVMeshMetadataCommandLineArgumentsForMongoDump case
+            else:
+                exclude_list = exclude_flag.join(MD_DB_DUMP_EXCLUDED_COLLECTIONS)
+
+            # add exclude_list and exclude_flag only if there are any collections to be excluded
+            if exclude_list:
+                cmd = "{0}{1}{2}".format(cmd, exclude_flag, exclude_list)
+
+        if execToolCmd is not None:
+            cmd = "{0} {1}".format(execToolCmd, cmd)
+
+        res = runCommand(cmd)
+        if res[2]:
+            print_to_stdout("Failed to dump database to file {0}".format(res[1]))
+            return False
+
+    return True
+
+
+def record_module_params_values():
+    outfile = 'on_collect_module_params'
+    cmd = "for m in `ls /sys/module/ | grep -E 'nvmeib*|siw'` ; do printf \"\n-- %s\n\" $m ; for p in `ls /sys/module/$m/parameters/`; do printf \"%-30s\t\" $p; cat /sys/module/$m/parameters/$p; done; done > {0} 2>&1".format(
+        outfile)
+    res = runCommand(cmd)
+    if res[2]:
+        print_to_stdout("ERROR: Failed to record all NVMesh module params: {0}".format(res[1]))
+
+
+def run_client_analyzer():
+    if os.path.exists(CLNT_ANALYZER_PATH):
+        cmd = "{0} {1}".format(CLNT_ANALYZER_PATH, "-o clnt_analyzer.log")
+        res = runCommand(cmd)
+        if res[2]:
+            print_to_stdout("ERROR: Failed to run nvmesh_clnt_analyzer tool {0}".format(res[1]))
+    else:
+        print_to_stdout("ERROR: Missing nvmesh_clnt_analyzer tool, can't run it")
+
+
+def run_scan_locks():
+    if os.path.exists(SCAN_LOCKS_PATH):
+        cmd = "{0} > {1}".format(SCAN_LOCKS_PATH, "scan_locks.log")
+        res = runTimedCommand(cmd, 30)
+        if int(res[2]) == True:
+            print
+            "ERROR: Failed to run scan locks tool {0}".format(res[1])
+    else:
+        print
+        "ERROR: Missing scan locks tool, can't run it"
+
+
+def run_health_check():
+    if os.path.exists(HEALTH_CHECK_SCRIPT_PATH):
+        cmd = "{0} --local --nocolor post_install -vvv > {1}".format(HEALTH_CHECK_SCRIPT_PATH, "nvmesh_check.log")
+        res = runCommand(cmd)
+        if res[2]:
+            print_to_stdout("ERROR: nvmesh_check script exited with an error, please check nvmesh_check.log")
+    else:
+        print_to_stdout("ERROR: Missing nvmesh_check script, can't run it")
+
+
+def collect_toma_dependency_libraries():
+    target_repo_dir = os.path.join(MDIR, 'target-repo')
+    if not os.path.exists(target_repo_dir):
+        print_to_stdout(
+            "ERROR: Failed to collect Toma dependency libraries, couldn't find {0}, nvmesh probably not installed".format(
+                target_repo_dir))
+        return
+
+    for f in os.listdir(target_repo_dir):
+        if f.startswith("target_"):
+            executable_dir = os.path.join(target_repo_dir, f, "toma/bin/release")
+
+            if os.path.exists(executable_dir):
+                toma_exec = os.path.join(executable_dir, TOMA_EXECUTABLE_FILE_NAME)
+                tar_name = "{0}.tar".format(f.replace('target', 'toma_libs'))
+                cmd = "tar -czhvf {0} `ldd {1} | grep -E ' => ' | grep -v 'not found' | cut -d' ' -f3`".format(tar_name,
+                                                                                                               toma_exec)
+                res = runCommand(cmd)
+
+                if res[2]:
+                    print_to_stdout("ERROR: Failed to collect Toma dependency libraries for: {0}".format(toma_exec))
+            else:
+                print_to_stdout(
+                    "ERROR: Failed to collect Toma dependency libraries, {} path not found".format(executable_dir))
+
+
+def save_customer_info():
+    customer_info_file = open(CUSTOMER_INFO_FILE_NAME, "w")
+    customer_info_file.write("Customer Name: " + args.CUSTOMER_NAME + "\n"
+                             + "Customer Engineer Contact: " + args.CUSTOMER_ENG_CONTACT + "\n"
+                             + "Customer Engineer Phone: " + args.CUSTOMER_ENG_PHONE + "\n"
+                             + "Customer Engineer Email: " + args.CUSTOMER_ENG_EMAIL + "\n")
+    customer_info_file.close()
+
+
+def createTraceDaemonSnapshot():
+    print_to_stdout("Creating Trace Daemon snapshot...")
+    if not os.path.exists(TRACE_DAEMON_SNAPSHOT_SCRIPT_PATH):
+        print_to_stdout("Error: cannot create trace daemon snapshot, {0} doesn't exist".format(TRACE_DAEMON_SNAPSHOT_SCRIPT_PATH))
+        return
+
+    res = runCommand(TRACE_DAEMON_SNAPSHOT_SCRIPT_PATH)
+
+    if int(res[2]) == True:
+        print_to_stdout("Error: cannot create trace daemon snapshot")
+        return
+
+
+def collect_docker_containers_logs():
+    print_to_stdout("collecting logs from docker containers...")
+    cmd = "which docker"
+    res = runCommand(cmd)
+
+    if int(res[2]) == True:
+        print_to_stdout("Error: docker executable is missing, cannot collect logs from docker containers")
+        return
+
+    create_initial_collection_dir_and_info()
+
+    for container_id in args.DOCKER_CONTAINERS:
+        # dump logs from the docker container
+        get_logs_cmd = "docker logs --timestamps --since=2h {0} > docker_{0}.logs".format(container_id)
+        res = runCommand(get_logs_cmd)
+        if int(res[2]) == True:
+            print_to_stdout("Error: could not collect docker logs from container: {0}".format(container_id))
+
+        if not args.DUMP_DB:
+            continue
+
+        success = dump_db_to_file("docker exec {0}".format(container_id), REMOTE_DB_DUMP_PATH)
+        if success:
+            # bring the dump
+            cp_db_dump_cmd = "docker cp {0}:{1} ./{0}_{2}".format(container_id, REMOTE_DB_DUMP_PATH, DB_DUMP_DIRNAME)
+            res = runCommand(cp_db_dump_cmd)
+            if int(res[2]) == True:
+                print_to_stdout("Error: could not copy the db dump dir from container: {0}".format(container_id))
+
+    compress_and_tar_output_dir()
+
+
+def collect_kubernetes_logs():
+    print_to_stdout("collecting logs from kubernetes...")
+    cmd = "which kubectl"
+    res = runCommand(cmd)
+
+    if int(res[2]) == True:
+        print_to_stdout("Error: kubectl executable is missing, cannot collect logs from docker pods")
+        return
+
+    list_container_ids_cmd = "kubectl get -n {0} pods {1} -o jsonpath='{{.spec.containers[*].name}}'".format(
+        args.KUB_NAMESPACE, args.KUB_POD)
+    res = runCommand(list_container_ids_cmd)
+    if int(res[2]) == True or res[1] == "":
+        print_to_stdout("Error: could not list namespace/pod containers to collect logs from")
+        return
+
+    container_ids = res[1].split()
+
+    outputDir = "{0}_nvmesh_logs_{1}_{2}_{3}".format(getBaseHostname(), args.KUB_NAMESPACE,
+                                                     args.KUB_POD, time.strftime("%Y%m%d-%H%M%S"))
+    create_initial_collection_dir_and_info(outputDir)
+
+    for container_id in container_ids:
+        get_logs_cmd = "kubectl logs --timestamps --since=2h -n {0} {1} -c {2} > {1}_{2}.logs".format(
+            args.KUB_NAMESPACE, args.KUB_POD, container_id)
+        res = runCommand(get_logs_cmd)
+        if int(res[2]) == True:
+            print_to_stdout("Error: could not fetch logs from kubernetes namespace: {0} pod: {1} container: {2}".format(
+                args.KUB_NAMESPACE, args.KUB_POD, container_id))
+
+        if not args.DUMP_DB:
+            continue
+
+        success = dump_db_to_file(
+            "kubectl exec -n {0} {1} -c {2} --".format(args.KUB_NAMESPACE, args.KUB_POD, container_id),
+            REMOTE_DB_DUMP_PATH)
+        if success:
+            # bring the dump
+            cp_db_dump_cmd = "kubectl cp {0}/{1}:{2} ./{1}_{3}_{4} -c {3}".format(args.KUB_NAMESPACE, args.KUB_POD,
+                                                                                  REMOTE_DB_DUMP_PATH, container_id,
+                                                                                  DB_DUMP_DIRNAME)
+            res = runCommand(cp_db_dump_cmd)
+            if int(res[2]) == True:
+                print_to_stdout(
+                    "Error: could not copy the db dump dir from namespace: {0} pod: {1} container: {2}".format(
+                        args.KUB_NAMESPACE, args.KUB_POD, container_id))
+
+    compress_and_tar_output_dir(outputDir)
+
+
+def collect_kafka_topic_messages():
+    kafka_conf_file = KAFKA_CONF_PATH
+    if args.KAFKA_CONFIG_PATH is not None and args.KAFKA_CONFIG_PATH != '':
+        kafka_conf_file = args.KAFKA_CONFIG_PATH
+
+    if not os.path.exists(kafka_conf_file):
+        print_to_stdout(
+            "Error: could not find kafka server config file in the following path: {0}".format(kafka_conf_file))
+        return
+
+    print_to_stdout("Collecting Kafka log files by topic...")
+
+    # get all occurrences of log.dirs without the commented ones
+    res = runCommand("cat {0} | grep log.dirs | grep -ve '#*.log.dirs'".format(kafka_conf_file))
+    log_dir_not_found_err = "Error: could not find log dir location in {}".format(kafka_conf_file)
+    if int(res[2]) == True or res[1] == "":
+        print_to_stdout(log_dir_not_found_err)
+        return
+
+    try:
+        # parse server.properties to find the log dir
+        raw_log_dir = res[1].decode("utf-8").strip().split('\n')
+        if len(raw_log_dir) == 0:
+            print_to_stdout(log_dir_not_found_err)
+            return
+
+        # get last occurrence of log_dir and fetch the path itself
+        log_dir = raw_log_dir[len(raw_log_dir) - 1].split("=")[1].strip()
+        if not os.path.exists(log_dir):
+            print_to_stdout("Error: configured kafka log dir doesn't exist {}".format(log_dir))
+            return
+
+        res = runCommand("tar -czSf kafka_topic_logs.tar {0}/*/*.log kafka_topic_logs/".format(log_dir))
+        if int(res[2]) == True:
+            print_to_stdout("Error: could not collect log files for kafka topics, err {}".format(res[1]))
+            return
+    except Exception as error:
+        print_to_stdout("Error: could not collect kafka log files, err: {0}".format(error))
+
+def collect_nvmesh_apport_core_dumps():
+    if not os.path.exists(NVMESH_APPORT_CORE_DUMPS_DIR) or not glob.glob("{0}/core*nvmesh*".format(NVMESH_APPORT_CORE_DUMPS_DIR)):
+        return
+
+    print_to_stdout("Collecting NVMesh apport core dumps...")
+
+    cmd = "cp -rp --parents {0}/core*nvmesh* .".format(NVMESH_APPORT_CORE_DUMPS_DIR)
+    res = runTimedCommand(cmd, 30)
+
+    if int(res[2]) == True:
+        print_to_stdout("Error: could not collect NVMesh apport core dumps - " + res[1])
+
+def collect_host_logs():
+    global TOMA_PID
+    TOMA_PID = get_toma_pid()
+    createTraceDaemonSnapshot()
+
+    print_to_stdout("Creating output directory...")
+    core_dir, mgmt_dir = create_host_collection_dirs()
+    print_to_stdout("Saving customer information...")
+    save_customer_info()
+
+    is_mgmt = mgmt_dir is not None
+
+    # Trigger the management internal-state dump (SIGUSR2) as early as possible
+    # so that /var/log/nvmesh/mgmtStats is fully written by the time we copy it
+    # later in the management collection phase.
+    if is_mgmt:
+        print_to_stdout("Collecting management stats...")
+        collect_mgmt_stats()
+
+    # === Core collection phase: cwd is the core sub-dir ===
+    if args.DUMP_BLOCKED_TASKS_STATE:
+        print_to_stdout("Dumping uninterruptible (blocked) tasks state...")
+        prepare_env_for_log_collection()
+    print_to_stdout("Creating log files...")
+    create_log_files()
+    print_to_stdout("Copying nvmesh system files...")
+    copy_sys_files(args.COPY_SOURCES)
+    print_to_stdout("Collecting nvme and network interfaces interrupts and information...")
+    collect_nvme_and_network_interrupts_and_logs()
+    print_to_stdout("Collecting journalctl...")
+    collect_journalctl()
+    print_to_stdout("Collecting Toma status...")
+    collect_toma_status()
+    print_to_stdout("Collecting Volumes information...")
+    collect_volumes_info()
+    print_to_stdout("Running Health Check script...")
+    run_health_check()
+    print_to_stdout("Collecting Toma dependency libraries...")
+    collect_toma_dependency_libraries()
+    print_to_stdout("Recording all module params...")
+    record_module_params_values()
+    print_to_stdout("Collecting installed packages info...")
+    if DistributionMGR.collectNVMeshPackagesInfo() != True:
+        print_to_stdout("WARNING: something went wrong while trying to collect NVMesh packages info")
+    if DistributionMGR.collectAllPackagesInfo() != True:
+        print_to_stdout("WARNING: something went wrong while trying to collect installed packages info")
+
+    print_to_stdout("Collecting NVMeshUM logs...")
+    collect_nvmeshum_logs()
+
+    collect_nvmesh_apport_core_dumps()
+
+    if args.COLLECT_KAFKA_LOGS:
+        print_to_stdout("Trying to collect Kafka logs...")
+        collect_kafka_topic_messages()
+
+    if args.COLLECT_CRASH:
+        print_to_stdout("Collecting last crash...")
+        copy_last_crash_files()
+        print_to_stdout("Collecting systemd Toma core dumps...")
+        collect_systemd_toma_core_dumps()
+
+    if args.COLLECT_SYSLOG:
+        print_to_stdout("Collecting syslog...")
+        copy_syslog_files()
+
+    if args.COLLECT_TOMA_GCORE:
+        print_to_stdout("Collecting Toma core using gcore...")
+        collect_toma_core_using_gcore()
+
+    if args.RUN_CLNT_ANALYZER:
+        print_to_stdout("Running client analyzer...")
+        run_client_analyzer()
+
+    if args.RUN_SCAN_LOCKS:
+        print_to_stdout("Running scan locks tool...")
+        run_scan_locks()
+
+    if args.COLLECT_TRACE_NFS_LOGS:
+        check_and_collect_remote_trace_daemon_logs()
+
+    # === Management collection phase: cwd is the mgmt sub-dir ===
+    if is_mgmt:
+        # Move cwd from the core sub-dir to the mgmt sub-dir (both are
+        # siblings under the same run dir).
+        os.chdir(os.path.join("..", mgmt_dir))
+
+        # Mirror the small shared metadata files (customer + packages info)
+        # from the core sub-dir so both archives are self-contained.
+        for shared_file in (CUSTOMER_INFO_FILE_NAME, NVMESH_PKGS_INFO_FILE_NAME, ALL_PKGS_INFO_FILE_NAME):
+            runCommand("ls ../{0}/{1} && cp -p ../{0}/{1} . || exit 0".format(core_dir, shared_file))
+
+        print_to_stdout("Copying management-related files...")
+        copy_mgmt_files()
+
+        if args.COLLECT_SYSLOG:
+            copy_syslog_files(mgmt_filter=True)
+
+        print_to_stdout("Collecting management-filtered journalctl...")
+        collect_journalctl(grep_pattern=MGMT_JOURNALCTL_FILTER)
+
+        if args.DUMP_DB:
+            dump_db_to_file()
+
+    compress_and_tar_host_log_dirs(core_dir, mgmt_dir)
+
+
+def create_initial_collection_dir_and_info(outputDir=None):
+    print_to_stdout("Creating output directory...")
+    create_output_dir(outputDir)
+    print_to_stdout("Saving customer information...")
+    save_customer_info()
+
+def compress_and_tar_output_dir(outputDir=None):
+    if outputDir is None:
+        outputDir = get_output_dir_name()
+
+    os.chdir("..")
+    tgzFile = outputDir + ".tgz"
+    print_to_stdout("Zipping and compressing...")
+    runCommand("tar -cvzhSf " + tgzFile + " " + outputDir)
+    print_to_stdout("Output file: " + tgzFile)
+    print_to_stdout("Cleaning up source directory...")
+    runCommand("rm -rf " + outputDir)
+    print_to_stdout("--- Done ---")
+
+
+def compress_and_tar_host_log_dirs(core_dir, mgmt_dir):
+    """Produce the final tgz files inside the run directory and delete the sub-dirs.
+
+    On entry, cwd is expected to be one of the collection sub-dirs (the mgmt
+    one if it exists, otherwise the core one). On exit, cwd is the parent
+    of the run directory (i.e. the original cwd where the script was invoked).
+
+    The core tgz excludes management.out and the mgmtStats directory from
+    the symlinked /var/log/nvmesh, since those belong to the management tgz.
+    """
+    # Step up to the run dir (parent of both sub-dirs).
+    os.chdir("..")
+
+    core_tgz = core_dir + ".tgz"
+    excludes = (
+        "--exclude='{0}/var/log/nvmesh/management.out' "
+        "--exclude='{0}/var/log/nvmesh/mgmtStats'"
+    ).format(core_dir)
+    print_to_stdout("Zipping and compressing core logs...")
+    runCommand("tar -cvzhSf {0} {1} {2}".format(core_tgz, excludes, core_dir))
+    print_to_stdout("Output file: " + os.path.abspath(core_tgz))
+    print_to_stdout("Cleaning up source directory...")
+    runCommand("rm -rf " + core_dir)
+
+    if mgmt_dir is not None:
+        mgmt_tgz = mgmt_dir + ".tgz"
+        print_to_stdout("Zipping and compressing management logs...")
+        runCommand("tar -cvzhSf {0} {1}".format(mgmt_tgz, mgmt_dir))
+        print_to_stdout("Output file: " + os.path.abspath(mgmt_tgz))
+        print_to_stdout("Cleaning up management source directory...")
+        runCommand("rm -rf " + mgmt_dir)
+
+    # Return to the parent of the run dir (where the lock file lives).
+    os.chdir("..")
+    print_to_stdout("--- Done ---")
+
+
+def collect_logs():
+    if args.DOCKER_CONTAINERS is not None and len(args.DOCKER_CONTAINERS) > 0:
+        if args.KUB_NAMESPACE is not None or args.KUB_POD is not None:
+            print_to_stdout("--containers cannot be combined with --kub-namespace or --kub-pod")
+            return
+        collect_docker_containers_logs()
+    elif args.KUB_NAMESPACE is not None or args.KUB_POD is not None:
+        if args.KUB_NAMESPACE is None:
+            print_to_stdout("ERROR: must specify --kub-namespace")
+            return
+        if args.KUB_POD is None:
+            print_to_stdout("ERROR: must specify --kub-pod")
+            return
+        collect_kubernetes_logs()
+    else:
+        check_root()
+        initDistributionManager()
+        collect_host_logs()
+
+
+class CustomArgsParser(argparse.ArgumentParser):
+
+    # override error function to allow for help to be printed on error
+    def error(self, message):
+        sys.stderr.write('Error: %s\n' % message)
+        self.print_help()
+        sys.exit(2)
+
+
+def main():
+    parser = CustomArgsParser(prog="python nvmesh_logs_collector", description='NVMesh log collector script')
+    parser.add_argument('-c', action='store_true', dest='COLLECT_CRASH',
+                        help="collect last crash file")
+    parser.add_argument('-f', action='store_false', dest='FILTER_SYSLOG',
+                        help="collect full syslog files (don't filter)")
+    parser.add_argument('-i', action='store_false', dest='COLLECT_SYSLOG',
+                        help="ignore syslog files")
+    parser.add_argument('-a', action='store_true', dest='COLLECT_ARCHIVE_SYSLOG',
+                        help="collect syslog archived files (gz or bz2)")
+    parser.add_argument('-g', action='store_true', dest='COLLECT_TOMA_GCORE',
+                        help="collect toma core file using gcore")
+    parser.add_argument('-d', action='store_false', dest='DUMP_DB',
+                        help="do not dump database to disk")
+    parser.add_argument('-D', '--dump-blocked-tasks-state', action='store_true', dest='DUMP_BLOCKED_TASKS_STATE',
+                        help="dump uninterruptible (blocked) tasks state")
+    parser.add_argument('--all-collections', action='store_true', dest='INCLUDE_ALL_DB_COLLECTIONS',
+                        help="include all collections while dumping the DB")
+    parser.add_argument('-S', dest='JOURNALCTL_SINCE_DATE', type=int, default=-7200,
+                        help="collect from journalctl entries not older than the specified time in seconds (default is 2h ago: -7200)")
+    parser.add_argument('-n', metavar='N', type=int, dest='JOURNALCTL_NUM_OF_LINES',
+                        help="choose number of lines to collect from journalctl")
+    parser.add_argument('-z', action='store_true', dest='RUN_CLNT_ANALYZER',
+                        help="run the nvmesh_clnt_analyzer tool to collect extra client logs")
+    parser.add_argument('-l', action='store_true', dest='RUN_SCAN_LOCKS',
+                        help="run the scan locks tool")
+    parser.add_argument('--keywords', nargs='*', type=str, dest='keywords',
+                        help="additional keywords to collect from syslog in addition to the default keywords")
+    parser.add_argument('--containers', nargs='*', type=str, dest='DOCKER_CONTAINERS',
+                        help="a list of docker containers to collect logs from")
+    parser.add_argument('--kub-namespace', type=str, dest='KUB_NAMESPACE',
+                        help="kubernetes namespace to collect logs from")
+    parser.add_argument('--kub-pod', type=str, dest='KUB_POD',
+                        help="kubernetes pod name to collect logs from")
+    parser.add_argument('--kub-operator', action='store_true', dest='KUB_OPERATOR',
+                        help="this flag is used when the script is run by the nvmesh kubernetes operator")
+    parser.add_argument('-s', action='store_true', dest='COPY_SOURCES',
+                        help="copy NVMesh source files (client and target)")
+    parser.add_argument('--collect-trace-nfs-logs', action='store_true', dest='COLLECT_TRACE_NFS_LOGS',
+                        help="checks if the trace daemon redirects its logs to an NFS server and collects that logs if so")
+    parser.add_argument('--customer-name', type=str, dest='CUSTOMER_NAME', default="None",
+                        help="adds the customer name into the " + CUSTOMER_INFO_FILE_NAME + " file")
+    parser.add_argument('--customer-eng-contact', type=str, dest='CUSTOMER_ENG_CONTACT', default="None",
+                        help="adds the customer engineer contact into the " + CUSTOMER_INFO_FILE_NAME + " file")
+    parser.add_argument('--customer-eng-phone', type=str, dest='CUSTOMER_ENG_PHONE', default="None",
+                        help="adds the customer engineer phone name into the " + CUSTOMER_INFO_FILE_NAME + " file")
+    parser.add_argument('--customer-eng-email', type=str, dest='CUSTOMER_ENG_EMAIL', default="None",
+                        help="adds the customer engineer email into the " + CUSTOMER_INFO_FILE_NAME + " file")
+    parser.add_argument('-k', action='store_true', dest='COLLECT_KAFKA_LOGS',
+                        help="collect kafka logs (messages by topics)")
+    parser.add_argument('--kafka-config-path', type=str, dest='KAFKA_CONFIG_PATH',
+                        help="kafka server config file path")
+    global args
+    args = parser.parse_args()
+    collect_logs()
+
+
+if __name__ == "__main__":
+    lock_file = 'nvmesh_logs_collector.lock'
+    fp = open(lock_file, 'w')
+
+    try:
+        fcntl.lockf(fp, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        logs_collector_pid = os.getpid()
+        fp.write(str(logs_collector_pid))
+        fp.flush()
+    except IOError:
+        # another instance is running
+        print_to_stdout('Another instance is running, you can only run one instance at a time')
+        sys.exit(0)
+
+    main()
+    os.remove(lock_file)
+
+    sys.exit(0)

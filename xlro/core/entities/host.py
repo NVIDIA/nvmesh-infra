@@ -309,7 +309,7 @@ class Host(BaseEntity):
             self._reconnect_and_verify_reboot()
 
     def ipmi(self, cmd, wait=True):
-        from xlro.infra.plugins.config_storage import config_storage
+        from xlro.core.util.config_storage import config_storage
         ipmi_mgr = None
         if cmd in ['reset', 'power_cycle']:
             self.connection.execute('ls .')  # verify connected before reboot
@@ -481,8 +481,10 @@ class Host(BaseEntity):
         match = re.search("(\s*Version\s*:\s*(?P<version>.+)\n)(.*\n)*(\s*Branch\s*:\s*(?P<branch>.+)\n).*(\s*Commit\s*:\s*(?P<commit>.+)\n).*(\s*OFED\s*:\s*(?P<ofed>.+)\n)?", out)
         if not match:
             logging.warn("Can't parse git info fields. OUT: {}".format(out))
-            return {'git info': {}}
-        return {'git_info': match.groupdict()}
+            return {'git_info': {}}
+        info = match.groupdict()
+        info['pkg'] = pkg.upper()
+        return {'git_info': info}
 
     def package_version(self, pkg):
         out, err, code = self.connection.execute(

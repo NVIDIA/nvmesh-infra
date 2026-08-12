@@ -1209,12 +1209,6 @@ class Client(SDKEntity):
     def attached_recovery(self):
         return [n for n, a in self.all_attachments.items() if a.is_hidden]
 
-    def get_mon_cls(self, io_tools='fio'):
-        from xlro.core.util.io_monitors import IOCmdMonitor, FioPidMonitor
-        if io_tools == 'fio':
-            return FioPidMonitor
-        return IOCmdMonitor
-
     def get_volume_dev_path(self, volume):
         return path.join(self.vol_dir_prefix, volume.name)
 

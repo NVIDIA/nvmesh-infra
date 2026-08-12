@@ -115,6 +115,25 @@ def env(var=None):
     else:
         click.echo(click.get_current_context().find_object(dict).get(var))
 
+@nvmesh.command('generate-docs', help='Generate CLI reference in Markdown (requires management connection)')
+@click.option('-v', '--release-version', default=None,
+              help='Release version for title (default: derived from management)')
+def generate_docs(release_version):
+    from xlro.tools.cli.cli_docs.generate_cli_docs import build_document
+    mgr = click_env(CTX_MGROBJ)
+    if not mgr:
+        raise click.UsageError(
+            'generate-docs requires a management connection.\n'
+            'Usage: nvmesh -m <management-host> generate-docs')
+    api_ver = mgr.api_version
+    if not release_version:
+        mgmt_ver = mgr.version or ''
+        release_version = mgmt_ver.split('-')[0] if mgmt_ver else api_ver
+    version_label = release_version
+    md = build_document(nvmesh, version_label, api_ver)
+    click.echo_via_pager(md)
+
+
 @nvmesh.command(help='Connect to a management server')
 @click.option('-m', '--management', help='Management address as host[:port]')
 @click.option('-u', '--user')
@@ -166,6 +185,9 @@ def login(management: str = None,
             except ManagementLoginError as e:
                 if user:
                     failure_msg(f'Login to {manager.endpoints} as {user} failed.')
+            except PermissionError as e:
+                failure_msg(f'TLS certificate permission error: {e}')
+                return None
             except Exception as e:
                 if isinstance(e, ConnectionManagerError):
                     failure_msg(e.args[0])
@@ -283,6 +305,7 @@ def main():
                 readline.replace_history_item(last_index-1, re.sub('( (-p|--password) *)([^ ]*)', mask_pass, last_item))
         return orig_post(*args, **kwargs)
     nvmesh.shell.postcmd = mask_login
+    logger.debug(f'Running CLI version: {_version_string}')
 
     if args.dump_version:
         mgr = None

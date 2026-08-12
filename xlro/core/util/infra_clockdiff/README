@@ -1,2 +1,0 @@
-This is a modified version of clockdiff with a new parameter "-c <packet_num>" which control number of packets that
-clockdiff is send to measure the diff ( default is 50 in original clockdiff)
