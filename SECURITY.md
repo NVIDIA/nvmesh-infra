@@ -3,7 +3,7 @@ SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All 
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Security Policy: nvmesh-infra
+# Security Policy: nvmesh-utils
 
 NVIDIA is dedicated to the security and trust of our software products and
 services, including all source code repositories we manage. If you need to
@@ -13,7 +13,7 @@ discussions, or pull requests.**
 
 ## Reporting a Vulnerability
 
-To report a potential security vulnerability in `nvmesh-infra`:
+To report a potential security vulnerability in `nvmesh-utils`:
 
 * **Web (preferred):** [NVIDIA Vulnerability Disclosure Program](https://www.nvidia.com/en-us/security/)
   — the preferred method for reporting security concerns across all NVIDIA products.
@@ -31,7 +31,7 @@ redirect the reporter to the private disclosure channels above.
 
 Detailed reports help NVIDIA evaluate and address issues faster. Please include:
 
-- Product/project name and version or branch affected (e.g., `nvmesh-infra`, see `pyproject.toml`)
+- Product/project name and version or branch affected (e.g., `nvmesh-utils`, see `pyproject.toml`)
 - Type of vulnerability (e.g., command injection, credential exposure, MITM, code execution)
 - Step-by-step instructions to reproduce the issue
 - Proof-of-concept code or exploit (if available)
@@ -51,7 +51,7 @@ for more information.
 
 ## Security Architecture & Context
 
-`nvmesh-infra` provides the NVMesh SDK, operator CLI toolset, and cluster
+`nvmesh-utils` provides the NVMesh SDK, operator CLI toolset, and cluster
 diagnostics/test infrastructure. It contains the core entity model
 (`xlro/core/entities/`), a management REST client
 (`xlro/core/sdk/ConnectionManager.py`), an SSH/command-execution layer
@@ -71,7 +71,7 @@ runs.
 
 **Repository Exposure Classification:** Public.
 Basis: the project is open-source and published for public consumption
-(`https://github.com/NVIDIA/nvmesh-infra`), so this document is world-readable
+(`https://github.com/NVIDIA/nvmesh-utils`), so this document is world-readable
 and is written to public-safe detail (internal hostnames, IPs, ticket IDs, and
 internal tooling URLs are omitted).
 
