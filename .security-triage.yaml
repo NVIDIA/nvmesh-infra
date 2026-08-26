@@ -1,10 +1,10 @@
 version: "1.0"
-project: "nvmesh-infra"
+project: "nvmesh-utils"
 last_updated: "2026-08-02T00:00:00Z"
 
 repository_exposure_classification:
   visibility: "Public"
-  basis: "project is open-source and published for public consumption (https://github.com/NVIDIA/nvmesh-infra); document written to public-safe detail (internal hostnames, IPs, ticket IDs, and internal tooling URLs omitted)"
+  basis: "project is open-source and published for public consumption (https://github.com/NVIDIA/nvmesh-utils); document written to public-safe detail (internal hostnames, IPs, ticket IDs, and internal tooling URLs omitted)"
   confirmed_by: "Ido Yehiam"
   date: "2026-08-02"
 
